@@ -1,9 +1,5 @@
 import { type CachedTableMetadata, type CacheConfig, type S3FileInfo } from "./types.js";
 export type { S3FileInfo };
-interface PartitionFilter {
-    sql: string;
-    parameters?: unknown[];
-}
 export declare class GlueTableCache {
     private tableCache;
     private s3ListingCache;
@@ -28,9 +24,6 @@ export declare class GlueTableCache {
     private listS3Files;
     private getPartitionExtractor;
     private convertDateFormatToRegex;
-    private ensureS3ListingTable;
-    getS3Locations(database: string, tableName: string, filter?: PartitionFilter): Promise<string[]>;
-    getFilteredS3Locations(database: string, tableName: string, partitionFilters: string[]): Promise<string[]>;
     createGlueTableFilesVarSql(database: string, tableName: string, filters?: string[]): Promise<string>;
     convertGlueTableQuery(query: string): Promise<string>;
     private getGlueTableViewSetupSql;
