@@ -140,7 +140,7 @@ export class SqlTransformer {
                         type_info: null,
                       },
                       is_null: false,
-                      value: `${tableRef.database}_${tableRef.table}_files`,
+                      value: this.getQueryFilesVarName(tableRef.database, tableRef.table),
                     },
                   },
                 ],
