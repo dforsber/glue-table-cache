@@ -18,7 +18,6 @@ SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 - 🚀 Convert SQL query reading Glue Table to direct S3 read query with partition pruning
   - [x] Parquet Glue Tables
   - [ ] JSON/CSV Glue Tables
-  - [ ] DuckDB `json_serialize_sql()` does not support e.g. COPY statements
 - 🔍 SQL-based partition filtering using DuckDB
   - 📊 Support for Hive-style partitioned tables
   - 🎯 Support for AWS Glue partition projection patterns tables:
@@ -30,6 +29,7 @@ SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
   - ⏰ Configurable TTL for cache entries
   - 🔄 Automatic cache invalidation and refresh
 - 🔒 Type-safe TypeScript implementation
+- NOTE: DuckDB `json_serialize_sql()` does not support e.g. COPY statements
 
 ## Installation
 
