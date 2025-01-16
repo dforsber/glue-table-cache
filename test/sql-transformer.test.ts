@@ -789,7 +789,7 @@ describe("SqlTransformer", () => {
         'SELECT col1, col2 FROM "glue"."mydb-with-dash"."mytable" WHERE id > 100'
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW mydb-with-dash_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
+        "CREATE OR REPLACE VIEW mydbwithdash_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
       );
     });
 
