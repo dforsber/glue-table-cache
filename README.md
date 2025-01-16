@@ -11,7 +11,8 @@ DuckDB SQL query AST manipulation is used instead of SQL string matching. Both s
 ```sql
 -- Original unsupport DuckDB SQL query
 SELECT * FROM glue.db.tbl;
--- Converts Glue Table to direct S3 read with partition pruned S3 file listing stored on DuckDB variable
+-- Converts Glue Table to direct S3 read with partition pruned
+--   S3 file listing stored on DuckDB variable
 SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 ```
 
@@ -91,13 +92,15 @@ console.log(convertedQuery);
     SELECT path FROM (VALUES ('s3://...'),('s3://...'),..,(s3://...)) t(path);
 
   CREATE OR REPLACE TABLE "mydatabase.mytable_s3_listing" AS 
-    SELECT path, regexp_extract(path, 'year=([^/]+)', 1) as year FROM "mydatabase.mytable_s3_files";
+    SELECT path, regexp_extract(path, 'year=([^/]+)', 1) as year 
+    FROM "mydatabase.mytable_s3_files";
 
   CREATE INDEX IF NOT EXISTS idx_year ON "mydatabase.mytable_s3_listing" (year);
 
   -- This is always query specific because we want to partition prune the files
   SET VARIABLE mydatabase_mytable_files = (
-    SELECT list(path) FROM "mydatabase.mytable_s3_listing" WHERE year >= '2023' AND month IN ('01', '02', '03')
+    SELECT list(path) FROM "mydatabase.mytable_s3_listing" 
+    WHERE year >= '2023' AND month IN ('01', '02', '03')
   );
 
   -- This is not query specific
@@ -105,7 +108,8 @@ console.log(convertedQuery);
     SELECT list(path) FROM "mydatabase.mytable_s3_listing"
   );
 
-  -- There is a view as well, if you happen to check SHOW TABLES, but it is query specific!
+  -- There is a view as well, if you happen to check SHOW TABLES, 
+  --  but it is query specific!
   CREATE OR REPLACE VIEW mydatabase_mytable_gview AS 
     SELECT * FROM parquet_scan(getvariable('default_mytable_gview_files'));
 
