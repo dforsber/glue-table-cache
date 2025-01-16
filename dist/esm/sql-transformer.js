@@ -56,7 +56,7 @@ export class SqlTransformer {
             .filter(Boolean);
     }
     getAstTableRefs(ast) {
-        const pathExpr = "$..*[?(@.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
+        const pathExpr = "$..*[?(@ && @.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
         const tableRefPaths = JSONPath({ path: pathExpr, json: ast });
         const glueRefs = tableRefPaths.map((node) => ({
             node,
@@ -72,7 +72,24 @@ export class SqlTransformer {
         log("Found %d Glue table references", tableRefs.length);
         logAst("Table references:", tableRefs);
         // Remove all query_location keys
-        JSONPath({ json: ast, path: "$..query_location", callback: () => undefined });
+        const paths = JSONPath({
+            path: "$..query_location",
+            json: ast,
+            resultType: "pointer", // Get JSON pointers instead
+        });
+        paths.forEach((pointer) => {
+            const segments = pointer.split("/").filter(Boolean);
+            segments.pop(); // Remove 'query_location'
+            let parent = ast;
+            // Navigate to parent
+            for (const segment of segments) {
+                parent = parent[segment];
+            }
+            // Set query_location to undefined
+            if (parent) {
+                parent.query_location = undefined;
+            }
+        });
         // Transform each table reference
         for (const ref of tableRefs) {
             const tableRef = ref.tableRef;

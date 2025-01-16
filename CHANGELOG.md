@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.9.10](https://github.com/dforsber/glue-table-cache/compare/v0.9.9...v0.9.10) (2025-01-16)
+
 ### [0.9.9](https://github.com/dforsber/glue-table-cache/compare/v0.9.8...v0.9.9) (2025-01-16)
 
 ### [0.9.8](https://github.com/dforsber/glue-table-cache/compare/v0.9.7...v0.9.8) (2025-01-16)
