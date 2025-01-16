@@ -245,10 +245,10 @@ class SqlTransformer {
         }
     }
     getQueryFilesVarName(database, table) {
-        return `${database}_${table}_files`;
+        return `${database}_${table}_files`.replaceAll("-", "");
     }
     getGlueTableFilesVarName(database, table) {
-        return `${database}_${table}_gview_files`;
+        return `${database}_${table}_gview_files`.replaceAll("-", "");
     }
     async getGlueTableViewSql(query) {
         // Get the AST in JSON format to extract table references
