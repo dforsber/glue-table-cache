@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["es2022"],
     "declaration": true,
-    "outDir": "./dist",
+    "outDir": "./dist/esm",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,

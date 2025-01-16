@@ -3,8 +3,10 @@
   "version": "0.9.5",
   "description": "Map Glue Table SQL to parquet scan with partition pruned S3 list, along with LRU metadata cache",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "module": "dist/esm/index.js",
+  "preferGlobal": true,
   "files": [
     "dist/*"
   ],
@@ -24,7 +26,8 @@
   "license": "MIT",
   "private": false,
   "exports": {
-    "import": "./dist/esm/index.js"
+    "import": "./dist/esm/index.js",
+    "require": "./dist/cjs/index.js"
   },
   "standard-version": {
     "scripts": {
@@ -33,7 +36,7 @@
   },
   "scripts": {
     "release": "standard-version -a",
-    "build": "rm -rf dist/ && tsc && node esbuild.config.js",
+    "build": "rm -rf dist/ && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
     "test": "jest",
     "example": "yarn build && NODE_OPTIONS='--loader ts-node/esm' ts-node example.ts",
     "test:unit": "jest test/glue-table-cache.test.ts test/sql-transformer.test.ts",
