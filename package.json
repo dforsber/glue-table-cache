@@ -5,6 +5,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist/*"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/dforsber/glue-table-cache.git"
@@ -21,13 +24,7 @@
   "license": "MIT",
   "private": false,
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": {
-        "browser": "./dist/browser.js",
-        "default": "./dist/index.js"
-      }
-    }
+    "import": "./dist/esm/index.js"
   },
   "standard-version": {
     "scripts": {
