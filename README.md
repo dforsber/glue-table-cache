@@ -45,7 +45,7 @@ yarn add glue-table-cache
 
 ```typescript
 import { GlueTableCache } from "glue-table-cache";
-import { DuckDBInstance, DuckDBConnection } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
 
 // Example: Convert a complex Glue Table query into DuckDB SQL statements
 const query = `
@@ -125,6 +125,9 @@ console.log(convertedQuery);
   GROUP BY year
   ORDER BY year DESC;
 */
+
+const db = await (await DuckDBInstance.create(":memory:")).connect();
+const results = await db.runAndReadAll(convertedQuery);
 ```
 
 ### Cache Management
