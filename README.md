@@ -161,32 +161,57 @@ constructor(region: string, config?: CacheConfig)
 
 #### Map SQL
 
-- `convertGlueTableQuery(query: string): Promise<string>`
-  - Converts Glue table references to DuckDB parquet_scan operations
-- `getGlueTableViewSetupSql(query: string): Promise<string[]>`
-  - Generates complete SQL setup for creating a DuckDB view over a Glue table
-  - Returns array of SQL statements that:
-    1. Create table for S3 file paths
-    2. Create table for partition listings with extractors
-    3. Create indexes on partition columns
-    4. Set variable with file list
-    5. Create the final view
+```typescript
+convertGlueTableQuery(query: string): Promise<string>
+```
+
+- Converts Glue table references to DuckDB parquet_scan operations
+
+```typescript
+getGlueTableViewSetupSql(query: string): Promise<string[]>
+```
+
+- Generates complete SQL setup for creating a DuckDB view over a Glue table
+- Returns array of SQL statements that:
+  1. Create table for S3 file paths
+  2. Create table for partition listings with extractors
+  3. Create indexes on partition columns
+  4. Set variable with file list
+  5. Create the final view
 
 #### Metadata Operations
 
-- `getTableMetadata(database: string, tableName: string): Promise<CachedTableMetadata>`
-  - Retrieves Glue Table metadata with caching
-- `clearCache(): void`
-  - Clears all cached metadata
-- `invalidateTable(database: string, tableName: string): void`
-  - Invalidates cache for specific table
+```typescript
+getTableMetadata(database: string, tableName: string): Promise<CachedTableMetadata>
+```
+
+- Retrieves Glue Table metadata with caching
+
+```typescript
+clearCache(): void
+```
+
+- Clears all cached metadata
+
+```typescript
+invalidateTable(database: string, tableName: string): void
+```
+
+- Invalidates cache for specific table
 
 #### File Operations
 
-- `getS3Locations(database: string, tableName: string, filter?: PartitionFilter): Promise<string[]>`
-  - Gets all matching S3 file locations
-- `getFilteredS3Locations(database: string, tableName: string, filters: string[]): Promise<string[]>`
-  - Gets S3 locations filtered by SQL predicates
+```typescript
+getS3Locations(database: string, tableName: string, filter?: PartitionFilter): Promise<string[]>
+```
+
+- Gets all matching S3 file locations
+
+```typescript
+getFilteredS3Locations(database: string, tableName: string, filters: string[]): Promise<string[]>
+```
+
+- Gets S3 locations filtered by SQL predicates
 
 ## Performance Features
 
