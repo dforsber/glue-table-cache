@@ -2,7 +2,7 @@
 import { DuckDBConnection } from "@duckdb/node-api";
 import { TableReference } from "./types.js";
 import debug from "debug";
-import jp from "jsonpath";
+import { JSONPath } from "jsonpath-plus";
 
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");
@@ -68,9 +68,12 @@ export class SqlTransformer {
 
   private getAstTableRefs(ast: any): any[] {
     const pathExpr =
-      "$..*[?(@.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
-    const tableRefPaths = jp.query(ast, pathExpr);
-    const glueRefs = tableRefPaths.map((node) => ({ node, tableRef: this.getGlueTableRef(node) }));
+      "$..*[?(@ && @.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
+    const tableRefPaths = JSONPath({ path: pathExpr, json: ast });
+    const glueRefs = tableRefPaths.map((node: any) => ({
+      node,
+      tableRef: this.getGlueTableRef(node),
+    }));
     return glueRefs;
   }
 
@@ -84,7 +87,27 @@ export class SqlTransformer {
     logAst("Table references:", tableRefs);
 
     // Remove all query_location keys
-    jp.apply(ast, "$..query_location", () => undefined);
+    const paths = JSONPath({
+      path: "$..query_location",
+      json: ast,
+      resultType: "pointer", // Get JSON pointers instead
+    });
+
+    paths.forEach((pointer: any) => {
+      const segments = pointer.split("/").filter(Boolean);
+      segments.pop(); // Remove 'query_location'
+      let parent = ast;
+
+      // Navigate to parent
+      for (const segment of segments) {
+        parent = parent[segment];
+      }
+
+      // Set query_location to undefined
+      if (parent) {
+        parent.query_location = undefined;
+      }
+    });
 
     // Transform each table reference
     for (const ref of tableRefs) {

@@ -1,5 +1,5 @@
 import debug from "debug";
-import jp from "jsonpath";
+import { JSONPath } from "jsonpath-plus";
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");
 export class SqlTransformer {
@@ -57,8 +57,11 @@ export class SqlTransformer {
     }
     getAstTableRefs(ast) {
         const pathExpr = "$..*[?(@.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
-        const tableRefPaths = jp.query(ast, pathExpr);
-        const glueRefs = tableRefPaths.map((node) => ({ node, tableRef: this.getGlueTableRef(node) }));
+        const tableRefPaths = JSONPath({ path: pathExpr, json: ast });
+        const glueRefs = tableRefPaths.map((node) => ({
+            node,
+            tableRef: this.getGlueTableRef(node),
+        }));
         return glueRefs;
     }
     transformNode(ast) {
@@ -69,7 +72,7 @@ export class SqlTransformer {
         log("Found %d Glue table references", tableRefs.length);
         logAst("Table references:", tableRefs);
         // Remove all query_location keys
-        jp.apply(ast, "$..query_location", () => undefined);
+        JSONPath({ json: ast, path: "$..query_location", callback: () => undefined });
         // Transform each table reference
         for (const ref of tableRefs) {
             const tableRef = ref.tableRef;

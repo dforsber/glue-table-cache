@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
 import { SqlTransformer } from "../src/sql-transformer.js";
-import jp from "jsonpath";
+import { JSONPath } from "jsonpath-plus";
 import fs from "fs/promises";
 import path from "node:path";
 
@@ -34,10 +34,10 @@ describe("SqlTransformer", () => {
       expect(ast.statements[0].node).toHaveProperty("type", "SELECT_NODE");
 
       // Find Glue table references using our JSONPath
-      const tableRefs = jp.query(
-        ast.statements[0],
-        "$..*[?(@ && @.type == 'BASE_TABLE' && ( @.catalog_name=='glue' || @.catalog_name=='GLUE' ))]"
-      );
+      const tableRefs = JSONPath({
+        json: ast.statements[0],
+        path: "$..*[?(@ && @.type == 'BASE_TABLE' && ( @.catalog_name=='glue' || @.catalog_name=='GLUE' ))]",
+      });
 
       // Verify we found the Glue table reference
       expect(tableRefs).toHaveLength(1);
@@ -508,7 +508,7 @@ describe("SqlTransformer", () => {
       (transformer as any).transformNode(ast);
 
       // Verify both tables were transformed to parquet_scan
-      const tableRefs = jp.query(ast, '$..*[?(@.type=="TABLE_FUNCTION")]');
+      const tableRefs = JSONPath({ json: ast, path: '$..*[?(@ && @.type=="TABLE_FUNCTION")]' });
       expect(tableRefs).toHaveLength(2);
 
       // Check first table transformation
@@ -527,7 +527,7 @@ describe("SqlTransformer", () => {
       (transformer as any).transformNode(ast);
 
       // Find the transformed table reference in the subquery
-      const tableRefs = jp.query(ast, '$..*[?(@.type=="TABLE_FUNCTION")]');
+      const tableRefs = JSONPath({ json: ast, path: '$..*[?(@ && @.type=="TABLE_FUNCTION")]' });
       expect(tableRefs).toHaveLength(1);
 
       expect(tableRefs[0].function.function_name).toBe("parquet_scan");
@@ -541,14 +541,20 @@ describe("SqlTransformer", () => {
       (transformer as any).transformNode(ast);
 
       // Find the transformed table reference in the CTE
-      const tableRefs = jp.query(ast, '$..*[?(@.type=="TABLE_FUNCTION")]');
+      const tableRefs = JSONPath({
+        json: ast,
+        path: '$..*[?(@ && @.type=="TABLE_FUNCTION")]',
+      });
       expect(tableRefs).toHaveLength(1);
 
       expect(tableRefs[0].function.function_name).toBe("parquet_scan");
       expect(tableRefs[0].function.children[0].children[0].value.value).toBe("mydb_mytable_files");
 
       // Verify the partition filters are preserved
-      const whereClause = jp.query(ast, '$..*[?(@.type=="CONJUNCTION_AND")]')[0];
+      const whereClause = JSONPath({
+        json: ast,
+        path: '$..*[?(@ && @.type=="CONJUNCTION_AND")]',
+      })[0];
       expect(whereClause.children).toHaveLength(2);
       expect(whereClause.children[0].type).toBe("COMPARE_EQUAL");
       expect(whereClause.children[1].type).toBe("COMPARE_IN");

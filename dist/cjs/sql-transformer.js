@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SqlTransformer = void 0;
 const debug_1 = __importDefault(require("debug"));
-const jsonpath_1 = __importDefault(require("jsonpath"));
+const jsonpath_plus_1 = require("jsonpath-plus");
 const log = (0, debug_1.default)("glue-table-cache:sql");
 const logAst = (0, debug_1.default)("glue-table-cache:sql:ast");
 class SqlTransformer {
@@ -63,8 +63,11 @@ class SqlTransformer {
     }
     getAstTableRefs(ast) {
         const pathExpr = "$..*[?(@.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
-        const tableRefPaths = jsonpath_1.default.query(ast, pathExpr);
-        const glueRefs = tableRefPaths.map((node) => ({ node, tableRef: this.getGlueTableRef(node) }));
+        const tableRefPaths = (0, jsonpath_plus_1.JSONPath)({ path: pathExpr, json: ast });
+        const glueRefs = tableRefPaths.map((node) => ({
+            node,
+            tableRef: this.getGlueTableRef(node),
+        }));
         return glueRefs;
     }
     transformNode(ast) {
@@ -75,7 +78,7 @@ class SqlTransformer {
         log("Found %d Glue table references", tableRefs.length);
         logAst("Table references:", tableRefs);
         // Remove all query_location keys
-        jsonpath_1.default.apply(ast, "$..query_location", () => undefined);
+        (0, jsonpath_plus_1.JSONPath)({ json: ast, path: "$..query_location", callback: () => undefined });
         // Transform each table reference
         for (const ref of tableRefs) {
             const tableRef = ref.tableRef;
