@@ -273,7 +273,7 @@ class SqlTransformer {
             const tableKey = `${ref.database}_${ref.table}`;
             if (!processedTables.has(tableKey)) {
                 processedTables.add(tableKey);
-                const tableViewName = `${tableKey}_gview`;
+                const tableViewName = `${tableKey}_gview`.replaceAll("-", "");
                 const baseQuery = `SELECT * FROM parquet_scan(getvariable('${glueTablVarName}'))`;
                 views.push(`CREATE OR REPLACE VIEW ${tableViewName} AS ${baseQuery};`);
             }
