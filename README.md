@@ -199,20 +199,6 @@ invalidateTable(database: string, tableName: string): void
 
 - Invalidates cache for specific table
 
-#### File Operations
-
-```typescript
-getS3Locations(database: string, tableName: string, filter?: PartitionFilter): Promise<string[]>
-```
-
-- Gets all matching S3 file locations
-
-```typescript
-getFilteredS3Locations(database: string, tableName: string, filters: string[]): Promise<string[]>
-```
-
-- Gets S3 locations filtered by SQL predicates
-
 ## Performance Features
 
 - ⚡️ LRU caching with configurable TTL reduces AWS API calls

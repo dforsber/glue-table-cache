@@ -79,34 +79,11 @@ describe("GlueTableCache Integration Tests", () => {
   });
 });
 
-describe("GlueTableCache.getFilteredS3Locations", () => {
-  it("should support complex partition filtering using DuckDB", async () => {
-    const cache = new GlueTableCache();
-    const locations = await cache.getFilteredS3Locations("boilingdata-benchmark", "nyc6trip_data", [
-      "year = '2016'",
-      "month IN ('01', '02', '03')",
-    ]);
-
-    expect(locations).toBeDefined();
-    expect(Array.isArray(locations)).toBe(true);
-    expect(locations.length).toBe(3); // Should match two premium electronics entries
-    expect(locations).toContain(
-      "s3://isecurefi-dev-test/nyc-tlc/trip_data/year=2016/month=01/yellow_tripdata_2016-01.parquet"
-    );
-    expect(locations).toContain(
-      "s3://isecurefi-dev-test/nyc-tlc/trip_data/year=2016/month=02/yellow_tripdata_2016-02.parquet"
-    );
-    expect(locations).toContain(
-      "s3://isecurefi-dev-test/nyc-tlc/trip_data/year=2016/month=03/yellow_tripdata_2016-03.parquet"
-    );
-  }, 30_000);
-
+describe("GlueTableCache", () => {
   it("should convert and execute Glue table query", async () => {
     const cache = new GlueTableCache();
 
     // First get the table metadata and ensure S3 listing exists
-    const metadata = await cache.getTableMetadata("default", "flights_parquet");
-    await (cache as any).ensureS3ListingTable("default", "flights_parquet", metadata);
     await cache.createGlueTableFilesVarSql("default", "flights_parquet");
 
     const query = "SELECT * FROM glue.default.flights_parquet LIMIT 10;";
@@ -125,9 +102,6 @@ describe("GlueTableCache.getFilteredS3Locations", () => {
     expect(Array.isArray(rows)).toBe(true);
     expect(rows.length).toBe(10);
     expect(rows[0].length).toBeGreaterThan(0); // Should have columns
-
-    // Ensure table exists for complex query
-    await (cache as any).ensureS3ListingTable("default", "flights_parquet", metadata);
 
     // Verify the query works with more complex SQL
     const complexQuery = `

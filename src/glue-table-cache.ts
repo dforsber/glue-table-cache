@@ -23,11 +23,6 @@ export type { S3FileInfo };
 const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");
 
-interface PartitionFilter {
-  sql: string;
-  parameters?: unknown[];
-}
-
 const defaultConfig: CacheConfig = {
   region: "eu-west-1",
   maxEntries: 100,
@@ -354,89 +349,6 @@ export class GlueTableCache {
       regex = regex.replace(pattern, replacement);
     }
     return regex;
-  }
-
-  private async ensureS3ListingTable(
-    database: string,
-    tableName: string,
-    metadata: CachedTableMetadata
-  ): Promise<void> {
-    if (!this.db) await this.connect();
-    if (!this.db) throw new Error("DB not connected");
-    const tblName = `${database}.${tableName}`;
-    const cached = this.s3ListingCache.get(tblName);
-    const now = Date.now();
-
-    if (cached && now - cached.timestamp < this.config.s3ListingRefreshMs) {
-      log("Using cached S3 listing for %s", tblName);
-      return;
-    }
-
-    log("Refreshing S3 listing for %s", tblName);
-    const baseLocation = metadata.table.StorageDescriptor?.Location;
-    if (!baseLocation) {
-      throw new Error(`No storage location found for ${database}.${tableName}`);
-    }
-
-    const partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name!);
-    const files = await this.listS3Files(baseLocation, partitionKeys);
-    this.s3ListingCache.set(tblName, { timestamp: now, data: files });
-
-    // Create base table for file paths
-    await this.db.run(
-      `CREATE OR REPLACE TABLE "${tblName}_s3_files" AS ` +
-        `SELECT path FROM (VALUES ${files.map((f) => `('${f.path}')`).join(",")}) t(path);`
-    );
-
-    // Create view with partition columns using appropriate extractors
-    const extractors = await Promise.all(
-      partitionKeys.map(async (k) => `${await this.getPartitionExtractor(k, metadata)} as ${k}`)
-    );
-
-    await this.db.run(
-      `CREATE OR REPLACE TABLE "${tblName}_s3_listing" AS ` +
-        `SELECT path,  ${extractors.join(", ")} FROM "${tblName}_s3_files";`
-    );
-
-    // Create indexes on partition columns
-    for (const key of partitionKeys) {
-      await this.db.run(
-        `CREATE INDEX IF NOT EXISTS idx_${key} ON "${tblName}_s3_listing" (${key});`
-      );
-    }
-  }
-
-  async getS3Locations(
-    database: string,
-    tableName: string,
-    filter?: PartitionFilter
-  ): Promise<string[]> {
-    if (!this.db) await this.connect();
-    if (!this.db) throw new Error("DB not connected");
-    const metadata = await this.getTableMetadata(database, tableName);
-    await this.ensureS3ListingTable(database, tableName, metadata);
-
-    const key = `${database}.${tableName}`;
-    let query = `SELECT DISTINCT path FROM "${key}_s3_listing"`;
-    log(query);
-    if (filter?.sql) {
-      query += ` WHERE ${filter.sql}`;
-    }
-
-    const result = await this.db.runAndReadAll(query);
-    // DuckDB returns rows as arrays, where each row is an array of values
-    // First column (index 0) contains our path values
-    return result.getRows().map((row) => String(row[0]));
-  }
-
-  async getFilteredS3Locations(
-    database: string,
-    tableName: string,
-    partitionFilters: string[]
-  ): Promise<string[]> {
-    return this.getS3Locations(database, tableName, {
-      sql: partitionFilters.join(" AND "),
-    });
   }
 
   async createGlueTableFilesVarSql(
