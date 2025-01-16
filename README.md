@@ -6,6 +6,8 @@ Both hive partitioning and partition projection based Glue Tables are supported.
 
 DuckDB SQL query AST manipulation is used instead of SQL string matching. Both standard Hive-style partitioned tables and AWS Glue partition projection patterns are supported, (except injected projection for now). Glue Tables are assumed to be Parquet based, but we will support also JSON and CSV based Glue Tables.
 
+> NOTE: This module uses DuckDB itself to do partition pruning by filtering S3 listings stored on DuckDB in-memory Table.
+
 ```sql
 -- Original unsupport DuckDB SQL query
 SELECT * FROM glue.db.tbl;
