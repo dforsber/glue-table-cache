@@ -784,6 +784,15 @@ describe("SqlTransformer", () => {
       );
     });
 
+    it("should generate view creation SQL with - on the db name", async () => {
+      const viewSql = await transformer.getGlueTableViewSql(
+        'SELECT col1, col2 FROM "glue"."mydb-with-dash"."mytable" WHERE id > 100'
+      );
+      expect(viewSql[0]).toBe(
+        "CREATE OR REPLACE VIEW mydb-with-dash_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
+      );
+    });
+
     it("should handle complex queries in view creation", async () => {
       const viewSql = await transformer.getGlueTableViewSql(
         `SELECT t1.col1, t2.col2 

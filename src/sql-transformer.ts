@@ -285,11 +285,11 @@ export class SqlTransformer {
   }
 
   public getQueryFilesVarName(database: string, table: string): string {
-    return `${database}_${table}_files`;
+    return `${database}_${table}_files`.replaceAll("-", "");
   }
 
   public getGlueTableFilesVarName(database: string, table: string): string {
-    return `${database}_${table}_gview_files`;
+    return `${database}_${table}_gview_files`.replaceAll("-", "");
   }
 
   async getGlueTableViewSql(query: string): Promise<string[]> {
