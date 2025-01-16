@@ -1,31 +1,45 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBConnection } from "@duckdb/node-api";
+import { TableReference } from "./types.js";
 import debug from "debug";
 import jp from "jsonpath";
 
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");
 
-interface TableReference {
-  database: string;
-  table: string;
-}
-
 export class SqlTransformer {
   constructor(private db: DuckDBConnection) {}
 
-  async transformGlueTableQuery(query: string): Promise<string> {
-    log("Transforming query: %s", query);
-
+  private async getQueryAST(query: string): Promise<any> {
     // Get the AST in JSON format
     const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
     log("Serializing SQL: %s", sqlCmd);
     const result = await this.db.runAndReadAll(sqlCmd);
-    let rows = result.getRows();
+    const rows = result.getRows();
     if (!rows.length || rows[0].length === 0 || rows[0][0] === null) {
       throw new Error("Failed to serialize SQL query");
     }
     const ast = JSON.parse(rows[0][0] as string);
     if (ast.error) throw new Error(JSON.stringify(ast));
+    return ast;
+  }
+
+  private async getSqlFromAst(ast: any): Promise<string> {
+    const deserializeCmd = `SELECT json_deserialize_sql('${JSON.stringify(ast).replace(/'/g, "''")}')`;
+    log("Deserializing SQL: %s", deserializeCmd);
+    const transformed = await this.db.runAndReadAll(deserializeCmd);
+    const rows = transformed.getRows();
+    if (!rows.length || rows[0].length === 0 || rows[0][0] === null) {
+      throw new Error("Failed to deserialize SQL query");
+    }
+    return (rows[0][0] as string) + ";";
+  }
+
+  async transformGlueTableQuery(query: string): Promise<string> {
+    log("Transforming query: %s", query);
+
+    // Get the AST in JSON format
+    const ast = await this.getQueryAST(query);
     logAst("Original AST: %O", ast);
 
     // Transform the AST
@@ -33,22 +47,31 @@ export class SqlTransformer {
     logAst("Transformed AST: %O", ast);
 
     // Convert back to SQL
-    // Convert back to SQL
-    const deserializeCmd = `SELECT json_deserialize_sql('${JSON.stringify(ast).replace(/'/g, "''")}')`;
-    log("Deserializing SQL: %s", deserializeCmd);
-    const transformed = await this.db.runAndReadAll(deserializeCmd);
-    rows = transformed.getRows();
-    if (!rows.length || rows[0].length === 0 || rows[0][0] === null) {
-      throw new Error("Failed to deserialize SQL query");
-    }
-    const sql = (rows[0][0] as string) + ";";
+    const sql = await this.getSqlFromAst(ast);
     log("Transformed query: %s", sql);
+
     return sql;
   }
 
-  private removeQueryLocation(ast: any): void {
-    // Remove all query_location keys
-    jp.apply(ast, "$..query_location", () => undefined);
+  public async getQueryGlueTableRefs(query: string): Promise<TableReference[]> {
+    // Get the AST in JSON format
+    const ast = await this.getQueryAST(query);
+    logAst("Original AST: %O", ast);
+    return this.getAstGlueTableRefs(ast);
+  }
+
+  private getAstGlueTableRefs(ast: string): TableReference[] {
+    return this.getAstTableRefs(ast)
+      .map((ref) => ref.tableRef)
+      .filter(Boolean);
+  }
+
+  private getAstTableRefs(ast: any): any[] {
+    const pathExpr =
+      "$..*[?(@.type=='BASE_TABLE' && (@.catalog_name=='glue' || @.catalog_name=='GLUE'))]";
+    const tableRefPaths = jp.query(ast, pathExpr);
+    const glueRefs = tableRefPaths.map((node) => ({ node, tableRef: this.getGlueTableRef(node) }));
+    return glueRefs;
   }
 
   private transformNode(ast: any): void {
@@ -56,24 +79,20 @@ export class SqlTransformer {
     logAst("AST structure:", ast);
 
     // Find all Glue table references using JSONPath
-    const tableRefs = jp.query(
-      ast,
-      '$..*[?(@.type=="BASE_TABLE" && ( @.catalog_name=="glue" || @.catalog_name=="GLUE" ))]'
-    );
+    const tableRefs = this.getAstTableRefs(ast);
     log("Found %d Glue table references", tableRefs.length);
     logAst("Table references:", tableRefs);
 
-    // remove all query_location keys
-    this.removeQueryLocation(ast);
+    // Remove all query_location keys
+    jp.apply(ast, "$..query_location", () => undefined);
 
     // Transform each table reference
-    for (const match of tableRefs) {
-      const node = match;
-      const tableRef = this.extractTableReference(node);
+    for (const ref of tableRefs) {
+      const tableRef = ref.tableRef;
       if (tableRef) {
         log("Transforming table reference %s.%s", tableRef.database, tableRef.table);
         // Replace with parquet_scan function call
-        Object.assign(node, {
+        Object.assign(ref.node, {
           type: "TABLE_FUNCTION",
           function: {
             class: "FUNCTION",
@@ -115,7 +134,7 @@ export class SqlTransformer {
     }
   }
 
-  private extractTableReference(node: any): TableReference | null {
+  private getGlueTableRef(node: any): TableReference | null {
     if (
       node.type === "BASE_TABLE" &&
       (node.catalog_name === "glue" || node.catalog_name === "GLUE")
@@ -242,6 +261,14 @@ export class SqlTransformer {
     }
   }
 
+  public getQueryFilesVarName(database: string, table: string): string {
+    return `${database}_${table}_files`;
+  }
+
+  public getGlueTableFilesVarName(database: string, table: string): string {
+    return `${database}_${table}_gview_files`;
+  }
+
   async getGlueTableViewSql(query: string): Promise<string[]> {
     // Get the AST in JSON format to extract table references
     const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
@@ -254,25 +281,20 @@ export class SqlTransformer {
     if (ast.error) throw new Error(JSON.stringify(ast));
 
     // Find all Glue table references
-    const tableRefs = jp.query(
-      ast,
-      '$..*[?(@.type=="BASE_TABLE" && (@.catalog_name=="glue" || @.catalog_name=="GLUE"))]'
-    );
-
-    if (!tableRefs.length) {
-      throw new Error("No Glue table references found in query");
-    }
+    const tableRefs = this.getAstGlueTableRefs(ast);
+    if (!tableRefs.length) throw new Error("No Glue table references found in query");
 
     // Create a view for each unique table reference
     const views: string[] = [];
     const processedTables = new Set<string>();
 
     for (const ref of tableRefs) {
-      const tableKey = `${ref.schema_name}_${ref.table_name}`;
+      const glueTablVarName = this.getGlueTableFilesVarName(ref.database, ref.table);
+      const tableKey = `${ref.database}_${ref.table}`;
       if (!processedTables.has(tableKey)) {
         processedTables.add(tableKey);
         const tableViewName = `${tableKey}_gview`;
-        const baseQuery = `SELECT * FROM parquet_scan(getvariable('${tableKey}_files'))`;
+        const baseQuery = `SELECT * FROM parquet_scan(getvariable('${glueTablVarName}'))`;
         views.push(`CREATE OR REPLACE VIEW ${tableViewName} AS ${baseQuery};`);
       }
     }

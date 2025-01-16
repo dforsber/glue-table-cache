@@ -1,26 +1,30 @@
 # Map Glue Table to DuckDB VIEW using S3 Listing with LRU Caching
 
-A TypeScript library that provides an LRU cache layer for AWS Glue Table metadata and S3 listings, optimizing access patterns and reducing API calls to AWS Glue and S3. It features DuckDB integration for efficient SQL-based partition filtering and supports both standard Hive-style partitioned tables and AWS Glue partition projection patterns.
+Because DuckDB does not support AWS Glue Table catalogs, you can use this module to map SQL queries and cache metadata.
 
-Convert SQL queries reading from Glue Tables to DuckDB Parquet scanning over pruned S3 listings.
+Convert DuckDB SQL queries reading from Glue Tables to DuckDB Parquet scanning over pruned S3 listings. It uses DuckDB AST instead of SQL string manipulation. It uses DuckDB integration for efficient SQL-based partition filtering and supports both standard Hive-style partitioned tables and AWS Glue partition projection patterns. This TS module also uses an LRU cache layer for AWS Glue Table metadata and S3 listings.
 
 ```sql
-SELECT * FROM glue.db.tabl;
--- Convert to reading directly from S3 with partition pruned listing
-SELECT * FROM parquet_scan(['s3://../file1.parquet', ..., 's3://../fileN.parquet'])
+-- Original unsupport DuckDB SQL query
+SELECT * FROM glue.db.tbl;
+-- Converts Glue Table to direct S3 read with partition pruned S3 file listing stored on DuckDB variable
+SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 ```
 
 ## Features
 
-- 🚀 Convert SQL query reading Glue Table to S3 read query with partition pruning
+- 🚀 Convert SQL query reading Glue Table to direct S3 read query with partition pruning
+  - [x] Parquet Glue Tables
+  - [ ] JSON/CSV Glue Tables
+  - [ ] DuckDB `json_serialize_sql()` does not support e.g. COPY statements
 - 🔍 SQL-based partition filtering using DuckDB
   - 📊 Support for Hive-style partitioned tables
-  - 🎯 Support for AWS Glue partition projection patterns:
-    - Date-based projections
-    - Integer range projections
-    - Enum value projections
-- 📂 Efficient S3 file listing with caching
-- 🚀 LRU (Least Recently Used) caching mechanism for Glue metadata
+  - 🎯 Support for AWS Glue partition projection patterns tables:
+    - [x] Date-based projections
+    - [x] Integer range projections
+    - [x] Enum value projections
+    - [ ] Injected projection from the query
+- 🚀 LRU (Least Recently Used) caching mechanism for Glue metadata and S3 listings
   - ⏰ Configurable TTL for cache entries
   - 🔄 Automatic cache invalidation and refresh
 - 🔒 Type-safe TypeScript implementation
@@ -28,8 +32,6 @@ SELECT * FROM parquet_scan(['s3://../file1.parquet', ..., 's3://../fileN.parquet
 ## Installation
 
 ```bash
-npm install glue-table-cache
-# or
 yarn add glue-table-cache
 ```
 
@@ -39,13 +41,9 @@ yarn add glue-table-cache
 
 ```typescript
 import { GlueTableCache } from "glue-table-cache";
-
-// Initialize the cache
-const cache = new GlueTableCache("eu-west-1");
+import { DuckDBInstance, DuckDBConnection } from "@duckdb/node-api";
 
 // Example: Convert a complex Glue Table query into DuckDB SQL statements
-const database = "mydatabase";
-const tableName = "mytable";
 const query = `
   WITH monthly_stats AS (
     SELECT year, month, 
@@ -65,100 +63,43 @@ const query = `
 `;
 
 // Get the complete SQL setup statements
-const statements = await cache.getGlueTableViewSetupSql(database, tableName, query);
-
-// Execute each statement to set up the view
-for (const sql of statements) {
-  await db.run(sql);
-}
-
-// The statements will:
-// 1. Create table for S3 file paths
-// 2. Create table for partition listings with extractors
-// 3. Create indexes on partition columns
-// 4. Set variable with file list
-// 5. Create the final view that transforms the original query
-
-// Now you can query the view directly
-const result = await db.run(`SELECT * FROM ${viewName}`);
-```
-
-### Basic Setup
-
-```typescript
-import { GlueTableCache } from "glue-table-cache";
-
-const cache = new GlueTableCache("eu-west-1", {
-  ttlMs: 3600000, // Cache TTL: 1 hour
-  maxEntries: 100, // Maximum number of tables to cache
+const cache = new GlueTableCache({
+  region: "eu-west-1", // AWS region
+  maxEntries: 100, // Maximum number of tables / listings per cache
   forceRefreshOnError: true, // Invalidate cache on errors
-  s3ListingRefreshMs: 300000, // S3 listing cache TTL: 5 minutes
+  glueTableMetadataTtlMs: 3600000, // Cache TTL: 1 hour
+  s3ListingRefreshMs: 3600000, // S3 listing cache TTL: 1 hour
 });
-```
 
-### Working with Table Metadata
-
-```typescript
-// Get table metadata with automatic caching
-const metadata = await cache.getTableMetadata("mydatabase", "mytable");
-
-// Access table properties
-console.log(metadata.table.Name);
-console.log(metadata.table.StorageDescriptor?.Location);
-
-// Check partition information
-if (metadata.projectionPatterns?.enabled) {
-  // Handle projection-enabled table
-  console.log("Projection patterns:", metadata.projectionPatterns.patterns);
-} else if (metadata.partitionMetadata) {
-  // Handle standard partitioned table
-  console.log("Partition keys:", metadata.partitionMetadata.keys);
-}
-
-// Generate complete SQL setup for a view
-const statements = await cache.getGlueTableViewSetupSql(
-  "mydatabase",
-  "mytable",
-  "SELECT * FROM glue.mydatabase.mytable"
-);
-
-// Execute all setup statements
-await db.run(sql.join(";\n"));
-```
-
-### SQL-Based File Filtering
-
-```typescript
-// Get filtered S3 locations using SQL predicates
-const locations = await cache.getFilteredS3Locations("mydatabase", "mytable", [
-  "year >= '2023'",
-  "month IN ('01', '02', '03')",
-  "region = 'eu-west-1'",
-]);
-
-// Convert Glue table references in SQL queries
-const query = `
-  WITH monthly_stats AS (
-    SELECT year, month,
-           COUNT(*) as flights,
-           AVG(delay) as avg_delay
-    FROM glue.mydatabase.mytable
-    WHERE year >= '2023'
-      AND month IN ('01', '02', '03')
-    GROUP BY year, month
-  )
-  SELECT year,
-         SUM(flights) as total_flights,
-         AVG(avg_delay) as yearly_avg_delay
-  FROM monthly_stats
-  GROUP BY year
-  ORDER BY year DESC;
-`;
+// The query above gets converted to use parquet_scan, for each Glue Table reference.
+// The returned transformed query includes all SQL statements for creating S3 listing
+// table and partition pruned SQL VARIABLE that is then used in the parquet scan.
+const convertedQuery = await cache.convertGlueTableQuery(query);
+const results = await db.runAndReadAll(convertedQuery);
 
 // The query above gets converted to use parquet_scan:
 const convertedQuery = await cache.convertGlueTableQuery(query);
 console.log(convertedQuery);
 /* Output:
+
+  -- The S3 listing is cached
+  CREATE OR REPLACE TABLE "mydatabase.mytable_s3_files" AS 
+    SELECT path FROM (VALUES ('s3://...'),('s3://...'),..,(s3://...)) t(path);
+
+  CREATE OR REPLACE TABLE "mydatabase.mytable_s3_listing" AS 
+    SELECT path, regexp_extract(path, 'year=([^/]+)', 1) as year FROM "mydatabase.mytable_s3_files";
+
+  CREATE INDEX IF NOT EXISTS idx_year ON "mydatabase.mytable_s3_listing" (year);
+
+  -- This is always query specific because we want to partition prune the files
+  SET VARIABLE mydatabase_mytable_files = (
+    SELECT list(path) FROM "mydatabase.mytable_s3_listing" WHERE year >= '2023' AND month IN ('01', '02', '03')
+  );
+
+  -- There is a view as well, if you happen to check SHOW TABLES, but it is query specific!
+  CREATE OR REPLACE VIEW mydatabase_mytable_gview AS 
+    SELECT * FROM parquet_scan(getvariable('default_mytable_files'));
+
   WITH monthly_stats AS (
     SELECT year, month,
            COUNT(*) as flights,
@@ -180,12 +121,9 @@ console.log(convertedQuery);
 ### Cache Management
 
 ```typescript
-// Clear entire cache
-cache.clearCache();
-// Invalidate specific table
-cache.invalidateTable("mydatabase", "mytable");
-// Clean up resources
-await cache.close();
+cache.clearCache(); // Clear entire cache
+cache.invalidateTable("mydatabase", "mytable"); // Invalidate specific table
+await cache.close(); // Clean up resources
 ```
 
 ## API Reference
@@ -209,7 +147,7 @@ constructor(region: string, config?: CacheConfig)
 
 - `convertGlueTableQuery(query: string): Promise<string>`
   - Converts Glue table references to DuckDB parquet_scan operations
-- `getGlueTableViewSetupSql(database: string, tableName: string, query: string): Promise<string[]>`
+- `getGlueTableViewSetupSql(query: string): Promise<string[]>`
   - Generates complete SQL setup for creating a DuckDB view over a Glue table
   - Returns array of SQL statements that:
     1. Create table for S3 file paths
@@ -236,12 +174,13 @@ constructor(region: string, config?: CacheConfig)
 
 ## Performance Features
 
-- ⚡️ LRU caching reduces AWS API calls
-- 📊 DuckDB for efficient SQL operations
-- 🔍 Automatic index creation for partition columns
-- 🗂 S3 file listing cache with configurable TTL
-- 🔄 Automatic cache invalidation on errors
+- ⚡️ LRU caching with configurable TTL reduces AWS API calls
 - 📈 Partition value extraction from S3 paths
+- 📊 in-memory DuckDB for efficient SQL operations
+- 🔍 Automatic index creation for partition columns
+- 🔄 Automatic cache invalidation on errors
+- 🚀 No slow regexp matching for SQL conversions but converting DuckDB AST
+- 🚀 Uses new DuckDB NodeJS (Neo) API module
 
 ## Requirements
 

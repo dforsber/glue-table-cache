@@ -2,8 +2,8 @@
 import { GlueTableCache, type S3FileInfo } from "../src/glue-table-cache";
 
 describe("GlueTableCache Integration Tests", () => {
-  const cache = new GlueTableCache("eu-west-1", {
-    ttlMs: 3600000,
+  const cache = new GlueTableCache({
+    glueTableMetadataTtlMs: 3600000,
     maxEntries: 100,
     forceRefreshOnError: true,
     s3ListingRefreshMs: 60000,
@@ -81,7 +81,7 @@ describe("GlueTableCache Integration Tests", () => {
 
 describe("GlueTableCache.getFilteredS3Locations", () => {
   it("should support complex partition filtering using DuckDB", async () => {
-    const cache = new GlueTableCache("eu-west-1");
+    const cache = new GlueTableCache();
     const locations = await cache.getFilteredS3Locations("boilingdata-benchmark", "nyc6trip_data", [
       "year = '2016'",
       "month IN ('01', '02', '03')",
@@ -102,19 +102,19 @@ describe("GlueTableCache.getFilteredS3Locations", () => {
   }, 30_000);
 
   it("should convert and execute Glue table query", async () => {
-    const cache = new GlueTableCache("eu-west-1");
+    const cache = new GlueTableCache();
 
     // First get the table metadata and ensure S3 listing exists
     const metadata = await cache.getTableMetadata("default", "flights_parquet");
     await (cache as any).ensureS3ListingTable("default", "flights_parquet", metadata);
-    await cache.createFileListVariable("default", "flights_parquet");
+    await cache.createGlueTableFilesVarSql("default", "flights_parquet");
 
     const query = "SELECT * FROM glue.default.flights_parquet LIMIT 10;";
     const convertedQuery = await cache.convertGlueTableQuery(query);
 
     // Verify the SQL conversion
     expect(convertedQuery).toBe(
-      "SELECT * FROM parquet_scan(getvariable('default_flights_parquet_files')) LIMIT 10;"
+      "CREATE OR REPLACE TABLE \"default.flights_parquet_s3_files\" AS SELECT path FROM (VALUES ('s3://athena-examples-eu-west-1/flight/parquet/year=1987/000008_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1988/000006_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1989/000005_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1990/000002_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1991/000008_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1992/000006_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1993/000000_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1994/000000_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1995/000004_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1996/000013_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1997/000011_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1998/000005_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=1999/000011_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2000/000013_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2001/000002_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2002/000002_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2003/000009_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2004/000010_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2005/000005_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2006/000006_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2007/000000_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2008/000005_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2009/000009_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2010/000012_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2011/000007_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2012/000013_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2013/000011_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2014/000005_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2015/000003_0'),('s3://athena-examples-eu-west-1/flight/parquet/year=2016/000012_0')) t(path);CREATE OR REPLACE TABLE \"default.flights_parquet_s3_listing\" AS SELECT path, regexp_extract(path, 'year=([^/]+)', 1) as year FROM \"default.flights_parquet_s3_files\";CREATE INDEX IF NOT EXISTS idx_year ON \"default.flights_parquet_s3_listing\" (year);SET VARIABLE default_flights_parquet_files = (SELECT list(path) FROM \"default.flights_parquet_s3_listing\");CREATE OR REPLACE VIEW default_flights_parquet_gview AS SELECT * FROM parquet_scan(getvariable('default_flights_parquet_files'));SELECT * FROM parquet_scan(getvariable('default_flights_parquet_files')) LIMIT 10;"
     );
 
     // Execute the converted query
@@ -180,7 +180,7 @@ describe("GlueTableCache.getFilteredS3Locations", () => {
   }, 30_000);
 
   it("should list and filter S3 files from athena-examples", async () => {
-    const cache = new GlueTableCache("eu-west-1");
+    const cache = new GlueTableCache();
 
     // Use the actual S3 path
     const s3Files = await (cache as any).listS3Files(

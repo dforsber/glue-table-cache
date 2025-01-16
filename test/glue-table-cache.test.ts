@@ -11,7 +11,7 @@ describe("GlueTableCache", () => {
 
   beforeEach(() => {
     glueMock.reset();
-    cache = new GlueTableCache("eu-west-1");
+    cache = new GlueTableCache();
   });
 
   afterEach(async () => {
@@ -49,8 +49,8 @@ describe("GlueTableCache", () => {
       ],
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 10,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000, // Add this line
@@ -85,8 +85,8 @@ describe("GlueTableCache", () => {
       },
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000,
@@ -108,8 +108,8 @@ describe("GlueTableCache", () => {
       },
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000,
@@ -131,8 +131,8 @@ describe("GlueTableCache", () => {
       },
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 100, // Short TTL for testing
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 100, // Short TTL for testing
       maxEntries: 10,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000, // Add this line
@@ -182,7 +182,7 @@ describe("Complete View Setup", () => {
       ],
     });
 
-    const cache = new GlueTableCache("eu-west-1");
+    const cache = new GlueTableCache();
 
     // Mock S3 listing to return some test files
     const s3Mock = jest.spyOn(cache as any, "listS3Files");
@@ -193,18 +193,17 @@ describe("Complete View Setup", () => {
       },
     ]);
 
-    const statements = await cache.getGlueTableViewSetupSql(
-      "mydb",
-      "mytable",
+    const statements = await (cache as any)?.getGlueTableViewSetupSql(
       "SELECT * FROM glue.mydb.mytable"
     );
 
-    expect(statements).toHaveLength(6); // Base table, listing table, index, variable, view
+    expect(statements).toHaveLength(7); // Base table, listing table, index, variable, view
     expect(statements[0]).toContain('CREATE OR REPLACE TABLE "mydb.mytable_s3_files"');
     expect(statements[1]).toContain('CREATE OR REPLACE TABLE "mydb.mytable_s3_listing"');
     expect(statements[2]).toContain("CREATE INDEX");
     expect(statements[4]).toContain("SET VARIABLE mydb_mytable_files");
-    expect(statements[5]).toContain("CREATE OR REPLACE VIEW mydb_mytable_gview");
+    expect(statements[5]).toContain("SET VARIABLE mydb_mytable_gview_files");
+    expect(statements[6]).toContain("CREATE OR REPLACE VIEW mydb_mytable_gview");
   });
 });
 
@@ -213,7 +212,7 @@ describe("GlueTableCache Partition Extraction", () => {
 
   beforeEach(async () => {
     glueMock.reset();
-    cache = new GlueTableCache("eu-west-1");
+    cache = new GlueTableCache();
   });
 
   afterEach(async () => {
@@ -472,7 +471,7 @@ describe("GlueTableCache Partition Extraction", () => {
   it("should handle error cases", async () => {
     glueMock.on(GetTableCommand).rejects(new Error("AWS Error"));
 
-    const cache = new GlueTableCache("eu-west-1", {
+    const cache = new GlueTableCache({
       forceRefreshOnError: true,
     });
 
@@ -481,8 +480,8 @@ describe("GlueTableCache Partition Extraction", () => {
   });
 
   it("should parse S3 paths correctly", async () => {
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000,
@@ -506,8 +505,8 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000,
@@ -523,9 +522,10 @@ describe("GlueTableCache Partition Extraction", () => {
     const metadata = await cache.getTableMetadata("test_db", "test_table");
     await (cache as any).ensureS3ListingTable("test_db", "test_table", metadata);
 
-    await cache.createFileListVariable("test_db", "test_table");
+    const sql = await cache.createGlueTableFilesVarSql("test_db", "test_table");
+    await (cache as any)?.runAndReadAll(sql);
     const result = await (cache as any)?.runAndReadAll(
-      "SELECT getvariable('test_db_test_table_files')"
+      "SELECT getvariable('test_db_test_table_gview_files');"
     );
     const value = result.getRows()[0][0];
     if (value === null) {
@@ -545,8 +545,8 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    const cache = new GlueTableCache("eu-west-1", {
-      ttlMs: 3600000,
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
       s3ListingRefreshMs: 100,

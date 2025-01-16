@@ -35,9 +35,8 @@ describe("SqlTransformer", () => {
 
       // Find Glue table references using our JSONPath
       const tableRefs = jp.query(
-        ast.statements,
-        "$..*[?(@ && @.type == 'BASE_TABLE' && @.catalog_name=='glue')]"
-        //'$..from_table[?(@ && @.type=="BASE_TABLE" && @.catalog_name=="glue")]'
+        ast.statements[0],
+        "$..*[?(@ && @.type == 'BASE_TABLE' && ( @.catalog_name=='glue' || @.catalog_name=='GLUE' ))]"
       );
 
       // Verify we found the Glue table reference
@@ -491,19 +490,6 @@ describe("SqlTransformer", () => {
 
       await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow();
     });
-
-    it("should handle null values in table reference extraction", () => {
-      const result = (transformer as any).extractTableReference({
-        type: "BASE_TABLE",
-        catalog_name: "glue",
-        schema_name: null,
-        table_name: null,
-      });
-      expect(result).toEqual({
-        database: "default",
-        table: null,
-      });
-    });
   });
 
   describe("AST Fixture Tests", () => {
@@ -788,7 +774,7 @@ describe("SqlTransformer", () => {
         "SELECT col1, col2 FROM glue.mydb.mytable WHERE id > 100"
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW mydb_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_files'));"
+        "CREATE OR REPLACE VIEW mydb_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_gview_files'));"
       );
     });
 
@@ -799,9 +785,9 @@ describe("SqlTransformer", () => {
          JOIN glue.db2.table2 t2 ON t1.id = t2.id`
       );
       expect(viewSql[0]).toContain("CREATE OR REPLACE VIEW db1_table1_gview AS");
-      expect(viewSql[0]).toContain("parquet_scan(getvariable('db1_table1_files'))");
+      expect(viewSql[0]).toContain("parquet_scan(getvariable('db1_table1_gview_files'))");
       expect(viewSql[1]).toContain("CREATE OR REPLACE VIEW db2_table2_gview AS");
-      expect(viewSql[1]).toContain("parquet_scan(getvariable('db2_table2_files'))");
+      expect(viewSql[1]).toContain("parquet_scan(getvariable('db2_table2_gview_files'))");
     });
   });
 });

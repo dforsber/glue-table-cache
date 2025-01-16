@@ -29,13 +29,19 @@ export interface ProjectionPattern {
 }
 
 export interface CacheConfig {
-  ttlMs: number;
+  region: string;
   maxEntries: number;
   forceRefreshOnError: boolean;
+  glueTableMetadataTtlMs: number;
   s3ListingRefreshMs: number;
 }
 
 export interface CacheEntry<T> {
   timestamp: number;
   data: T;
+}
+
+export interface TableReference {
+  database: string;
+  table: string;
 }

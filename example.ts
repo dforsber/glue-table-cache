@@ -10,7 +10,7 @@ const tableName = "flights_parquet";
 const query = `SELECT * FROM glue.${database}.${tableName} WHERE year = '2016' AND month IN ('01', '02', '03') LIMIT 10;`;
 
 // Get the complete SQL setup statements
-const statements = await cache.getGlueTableViewSetupSql(database, tableName, query);
+const statements = await cache.getGlueTableViewSetupSql(query);
 statements.forEach((statement) => console.log(statement + "\n\n"));
 
 // Convert the query into DuckDB SQL using the parquet scan format

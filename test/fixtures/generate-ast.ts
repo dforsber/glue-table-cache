@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBInstance } from "@duckdb/node-api";
 import * as fs from "fs";
 import * as path from "path";
@@ -49,7 +50,7 @@ async function generateAst() {
   const fixturePath = path.join(__dirname, "duckdb-ast.json");
   fs.writeFileSync(fixturePath, JSON.stringify(fixtures, null, 2));
 
-  await db.close();
+  db.close();
 }
 
 generateAst().catch(console.error);
