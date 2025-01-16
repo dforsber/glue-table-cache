@@ -1,8 +1,10 @@
-# Map Glue Table to DuckDB VIEW using S3 Listing with LRU Caching
+# Query AWS Glue Tables efficiently with DuckDB
 
-Because DuckDB does not support AWS Glue Table catalogs, you can use this module to map SQL queries and cache metadata.
+You can use this module to query AWS Glue Tables from DuckDB while efficiently caching all Glue metadata (tables, partitions) and S3 listings. Both hive partitioning and partition projection based Glue Tables are supported.
 
-Convert DuckDB SQL queries reading from Glue Tables to DuckDB Parquet scanning over pruned S3 listings. It uses DuckDB AST instead of SQL string manipulation. It uses DuckDB integration for efficient SQL-based partition filtering and supports both standard Hive-style partitioned tables and AWS Glue partition projection patterns. This TS module also uses an LRU cache layer for AWS Glue Table metadata and S3 listings.
+Convert DuckDB SQL queries reading from Glue Tables to DuckDB Parquet scanning over partition pruned S3 listings by using DuckDB. DuckDB SQL query AST manipulation is used instead of SQL string matching. Both standard Hive-style partitioned tables and AWS Glue partition projection patterns are supported, (except injected projection for now).
+
+Glue Tables are assumed to be Parquet based, but we will support also JSON and CSV based Glue Tables.
 
 ```sql
 -- Original unsupport DuckDB SQL query
@@ -96,9 +98,14 @@ console.log(convertedQuery);
     SELECT list(path) FROM "mydatabase.mytable_s3_listing" WHERE year >= '2023' AND month IN ('01', '02', '03')
   );
 
+  -- This is not query specific
+  SET VARIABLE mydatabase_mytable_gview_files = (
+    SELECT list(path) FROM "mydatabase.mytable_s3_listing"
+  );
+
   -- There is a view as well, if you happen to check SHOW TABLES, but it is query specific!
   CREATE OR REPLACE VIEW mydatabase_mytable_gview AS 
-    SELECT * FROM parquet_scan(getvariable('default_mytable_files'));
+    SELECT * FROM parquet_scan(getvariable('default_mytable_gview_files'));
 
   WITH monthly_stats AS (
     SELECT year, month,
