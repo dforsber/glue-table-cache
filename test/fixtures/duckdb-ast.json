@@ -1,0 +1,604 @@
+{
+  "join_query": {
+    "sql": "SELECT t1.col1, t2.col2 \n      FROM glue.db1.table1 t1 \n      JOIN glue.db2.table2 t2 ON t1.id = t2.id",
+    "ast": {
+      "error": false,
+      "statements": [
+        {
+          "node": {
+            "type": "SELECT_NODE",
+            "modifiers": [],
+            "cte_map": {
+              "map": []
+            },
+            "select_list": [
+              {
+                "class": "COLUMN_REF",
+                "type": "COLUMN_REF",
+                "alias": "",
+                "query_location": 14,
+                "column_names": [
+                  "t1",
+                  "col1"
+                ]
+              },
+              {
+                "class": "COLUMN_REF",
+                "type": "COLUMN_REF",
+                "alias": "",
+                "query_location": 23,
+                "column_names": [
+                  "t2",
+                  "col2"
+                ]
+              }
+            ],
+            "from_table": {
+              "type": "JOIN",
+              "alias": "",
+              "sample": null,
+              "query_location": 69,
+              "left": {
+                "type": "BASE_TABLE",
+                "alias": "t1",
+                "sample": null,
+                "query_location": 43,
+                "schema_name": "db1",
+                "table_name": "table1",
+                "column_name_alias": [],
+                "catalog_name": "glue"
+              },
+              "right": {
+                "type": "BASE_TABLE",
+                "alias": "t2",
+                "sample": null,
+                "query_location": 74,
+                "schema_name": "db2",
+                "table_name": "table2",
+                "column_name_alias": [],
+                "catalog_name": "glue"
+              },
+              "condition": {
+                "class": "COMPARISON",
+                "type": "COMPARE_EQUAL",
+                "alias": "",
+                "query_location": 102,
+                "left": {
+                  "class": "COLUMN_REF",
+                  "type": "COLUMN_REF",
+                  "alias": "",
+                  "query_location": 96,
+                  "column_names": [
+                    "t1",
+                    "id"
+                  ]
+                },
+                "right": {
+                  "class": "COLUMN_REF",
+                  "type": "COLUMN_REF",
+                  "alias": "",
+                  "query_location": 104,
+                  "column_names": [
+                    "t2",
+                    "id"
+                  ]
+                }
+              },
+              "join_type": "INNER",
+              "ref_type": "REGULAR",
+              "using_columns": [],
+              "delim_flipped": false,
+              "duplicate_eliminated_columns": []
+            },
+            "where_clause": null,
+            "group_expressions": [],
+            "group_sets": [],
+            "aggregate_handling": "STANDARD_HANDLING",
+            "having": null,
+            "sample": null,
+            "qualify": null
+          }
+        }
+      ]
+    }
+  },
+  "subquery": {
+    "sql": "SELECT * FROM (\n        SELECT col1, col2 \n        FROM glue.mydb.mytable \n        WHERE col1 > 0\n      ) t",
+    "ast": {
+      "error": false,
+      "statements": [
+        {
+          "node": {
+            "type": "SELECT_NODE",
+            "modifiers": [],
+            "cte_map": {
+              "map": []
+            },
+            "select_list": [
+              {
+                "class": "STAR",
+                "type": "STAR",
+                "alias": "",
+                "query_location": 14,
+                "relation_name": "",
+                "exclude_list": [],
+                "replace_list": [],
+                "columns": false,
+                "expr": null,
+                "unpacked": false
+              }
+            ],
+            "from_table": {
+              "type": "SUBQUERY",
+              "alias": "t",
+              "sample": null,
+              "query_location": 18446744073709552000,
+              "subquery": {
+                "node": {
+                  "type": "SELECT_NODE",
+                  "modifiers": [],
+                  "cte_map": {
+                    "map": []
+                  },
+                  "select_list": [
+                    {
+                      "class": "COLUMN_REF",
+                      "type": "COLUMN_REF",
+                      "alias": "",
+                      "query_location": 38,
+                      "column_names": [
+                        "col1"
+                      ]
+                    },
+                    {
+                      "class": "COLUMN_REF",
+                      "type": "COLUMN_REF",
+                      "alias": "",
+                      "query_location": 44,
+                      "column_names": [
+                        "col2"
+                      ]
+                    }
+                  ],
+                  "from_table": {
+                    "type": "BASE_TABLE",
+                    "alias": "",
+                    "sample": null,
+                    "query_location": 63,
+                    "schema_name": "mydb",
+                    "table_name": "mytable",
+                    "column_name_alias": [],
+                    "catalog_name": "glue"
+                  },
+                  "where_clause": {
+                    "class": "COMPARISON",
+                    "type": "COMPARE_GREATERTHAN",
+                    "alias": "",
+                    "query_location": 101,
+                    "left": {
+                      "class": "COLUMN_REF",
+                      "type": "COLUMN_REF",
+                      "alias": "",
+                      "query_location": 96,
+                      "column_names": [
+                        "col1"
+                      ]
+                    },
+                    "right": {
+                      "class": "CONSTANT",
+                      "type": "VALUE_CONSTANT",
+                      "alias": "",
+                      "query_location": 103,
+                      "value": {
+                        "type": {
+                          "id": "INTEGER",
+                          "type_info": null
+                        },
+                        "is_null": false,
+                        "value": 0
+                      }
+                    }
+                  },
+                  "group_expressions": [],
+                  "group_sets": [],
+                  "aggregate_handling": "STANDARD_HANDLING",
+                  "having": null,
+                  "sample": null,
+                  "qualify": null
+                }
+              },
+              "column_name_alias": []
+            },
+            "where_clause": null,
+            "group_expressions": [],
+            "group_sets": [],
+            "aggregate_handling": "STANDARD_HANDLING",
+            "having": null,
+            "sample": null,
+            "qualify": null
+          }
+        }
+      ]
+    }
+  },
+  "complex_cte": {
+    "sql": "WITH monthly_stats AS (\n        SELECT year, month, COUNT(*) as flights\n        FROM glue.mydb.mytable\n        WHERE year = '2024' AND month IN ('01', '02')\n        GROUP BY year, month\n      )\n      SELECT year, SUM(flights) as total_flights\n      FROM monthly_stats\n      GROUP BY year\n      ORDER BY year DESC",
+    "ast": {
+      "error": false,
+      "statements": [
+        {
+          "node": {
+            "type": "SELECT_NODE",
+            "modifiers": [
+              {
+                "type": "ORDER_MODIFIER",
+                "orders": [
+                  {
+                    "type": "DESCENDING",
+                    "null_order": "ORDER_DEFAULT",
+                    "expression": {
+                      "class": "COLUMN_REF",
+                      "type": "COLUMN_REF",
+                      "alias": "",
+                      "query_location": 310,
+                      "column_names": [
+                        "year"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "cte_map": {
+              "map": [
+                {
+                  "key": "monthly_stats",
+                  "value": {
+                    "aliases": [],
+                    "query": {
+                      "node": {
+                        "type": "SELECT_NODE",
+                        "modifiers": [],
+                        "cte_map": {
+                          "map": []
+                        },
+                        "select_list": [
+                          {
+                            "class": "COLUMN_REF",
+                            "type": "COLUMN_REF",
+                            "alias": "",
+                            "query_location": 46,
+                            "column_names": [
+                              "year"
+                            ]
+                          },
+                          {
+                            "class": "COLUMN_REF",
+                            "type": "COLUMN_REF",
+                            "alias": "",
+                            "query_location": 52,
+                            "column_names": [
+                              "month"
+                            ]
+                          },
+                          {
+                            "class": "FUNCTION",
+                            "type": "FUNCTION",
+                            "alias": "flights",
+                            "query_location": 59,
+                            "function_name": "count_star",
+                            "schema": "",
+                            "children": [],
+                            "filter": null,
+                            "order_bys": {
+                              "type": "ORDER_MODIFIER",
+                              "orders": []
+                            },
+                            "distinct": false,
+                            "is_operator": false,
+                            "export_state": false,
+                            "catalog": ""
+                          }
+                        ],
+                        "from_table": {
+                          "type": "BASE_TABLE",
+                          "alias": "",
+                          "sample": null,
+                          "query_location": 92,
+                          "schema_name": "mydb",
+                          "table_name": "mytable",
+                          "column_name_alias": [],
+                          "catalog_name": "glue"
+                        },
+                        "where_clause": {
+                          "class": "CONJUNCTION",
+                          "type": "CONJUNCTION_AND",
+                          "alias": "",
+                          "query_location": 138,
+                          "children": [
+                            {
+                              "class": "COMPARISON",
+                              "type": "COMPARE_EQUAL",
+                              "alias": "",
+                              "query_location": 129,
+                              "left": {
+                                "class": "COLUMN_REF",
+                                "type": "COLUMN_REF",
+                                "alias": "",
+                                "query_location": 124,
+                                "column_names": [
+                                  "year"
+                                ]
+                              },
+                              "right": {
+                                "class": "CONSTANT",
+                                "type": "VALUE_CONSTANT",
+                                "alias": "",
+                                "query_location": 131,
+                                "value": {
+                                  "type": {
+                                    "id": "VARCHAR",
+                                    "type_info": null
+                                  },
+                                  "is_null": false,
+                                  "value": "2024"
+                                }
+                              }
+                            },
+                            {
+                              "class": "OPERATOR",
+                              "type": "COMPARE_IN",
+                              "alias": "",
+                              "query_location": 148,
+                              "children": [
+                                {
+                                  "class": "COLUMN_REF",
+                                  "type": "COLUMN_REF",
+                                  "alias": "",
+                                  "query_location": 142,
+                                  "column_names": [
+                                    "month"
+                                  ]
+                                },
+                                {
+                                  "class": "CONSTANT",
+                                  "type": "VALUE_CONSTANT",
+                                  "alias": "",
+                                  "query_location": 152,
+                                  "value": {
+                                    "type": {
+                                      "id": "VARCHAR",
+                                      "type_info": null
+                                    },
+                                    "is_null": false,
+                                    "value": "01"
+                                  }
+                                },
+                                {
+                                  "class": "CONSTANT",
+                                  "type": "VALUE_CONSTANT",
+                                  "alias": "",
+                                  "query_location": 158,
+                                  "value": {
+                                    "type": {
+                                      "id": "VARCHAR",
+                                      "type_info": null
+                                    },
+                                    "is_null": false,
+                                    "value": "02"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        "group_expressions": [
+                          {
+                            "class": "COLUMN_REF",
+                            "type": "COLUMN_REF",
+                            "alias": "",
+                            "query_location": 181,
+                            "column_names": [
+                              "year"
+                            ]
+                          },
+                          {
+                            "class": "COLUMN_REF",
+                            "type": "COLUMN_REF",
+                            "alias": "",
+                            "query_location": 187,
+                            "column_names": [
+                              "month"
+                            ]
+                          }
+                        ],
+                        "group_sets": [
+                          [
+                            0,
+                            1
+                          ]
+                        ],
+                        "aggregate_handling": "STANDARD_HANDLING",
+                        "having": null,
+                        "sample": null,
+                        "qualify": null
+                      }
+                    },
+                    "materialized": "CTE_MATERIALIZE_DEFAULT"
+                  }
+                }
+              ]
+            },
+            "select_list": [
+              {
+                "class": "COLUMN_REF",
+                "type": "COLUMN_REF",
+                "alias": "",
+                "query_location": 214,
+                "column_names": [
+                  "year"
+                ]
+              },
+              {
+                "class": "FUNCTION",
+                "type": "FUNCTION",
+                "alias": "total_flights",
+                "query_location": 220,
+                "function_name": "sum",
+                "schema": "",
+                "children": [
+                  {
+                    "class": "COLUMN_REF",
+                    "type": "COLUMN_REF",
+                    "alias": "",
+                    "query_location": 224,
+                    "column_names": [
+                      "flights"
+                    ]
+                  }
+                ],
+                "filter": null,
+                "order_bys": {
+                  "type": "ORDER_MODIFIER",
+                  "orders": []
+                },
+                "distinct": false,
+                "is_operator": false,
+                "export_state": false,
+                "catalog": ""
+              }
+            ],
+            "from_table": {
+              "type": "BASE_TABLE",
+              "alias": "",
+              "sample": null,
+              "query_location": 261,
+              "schema_name": "",
+              "table_name": "monthly_stats",
+              "column_name_alias": [],
+              "catalog_name": ""
+            },
+            "where_clause": null,
+            "group_expressions": [
+              {
+                "class": "COLUMN_REF",
+                "type": "COLUMN_REF",
+                "alias": "",
+                "query_location": 290,
+                "column_names": [
+                  "year"
+                ]
+              }
+            ],
+            "group_sets": [
+              [
+                0
+              ]
+            ],
+            "aggregate_handling": "STANDARD_HANDLING",
+            "having": null,
+            "sample": null,
+            "qualify": null
+          }
+        }
+      ]
+    }
+  },
+  "parq": {
+    "sql": "SELECT * FROM parquet_scan(getvariable('mydb_mytable_files'))",
+    "ast": {
+      "error": false,
+      "statements": [
+        {
+          "node": {
+            "type": "SELECT_NODE",
+            "modifiers": [],
+            "cte_map": {
+              "map": []
+            },
+            "select_list": [
+              {
+                "class": "STAR",
+                "type": "STAR",
+                "alias": "",
+                "query_location": 7,
+                "relation_name": "",
+                "exclude_list": [],
+                "replace_list": [],
+                "columns": false,
+                "expr": null,
+                "unpacked": false
+              }
+            ],
+            "from_table": {
+              "type": "TABLE_FUNCTION",
+              "alias": "",
+              "sample": null,
+              "query_location": 14,
+              "function": {
+                "class": "FUNCTION",
+                "type": "FUNCTION",
+                "alias": "",
+                "query_location": 14,
+                "function_name": "parquet_scan",
+                "schema": "",
+                "children": [
+                  {
+                    "class": "FUNCTION",
+                    "type": "FUNCTION",
+                    "alias": "",
+                    "query_location": 27,
+                    "function_name": "getvariable",
+                    "schema": "",
+                    "children": [
+                      {
+                        "class": "CONSTANT",
+                        "type": "VALUE_CONSTANT",
+                        "alias": "",
+                        "query_location": 39,
+                        "value": {
+                          "type": {
+                            "id": "VARCHAR",
+                            "type_info": null
+                          },
+                          "is_null": false,
+                          "value": "mydb_mytable_files"
+                        }
+                      }
+                    ],
+                    "filter": null,
+                    "order_bys": {
+                      "type": "ORDER_MODIFIER",
+                      "orders": []
+                    },
+                    "distinct": false,
+                    "is_operator": false,
+                    "export_state": false,
+                    "catalog": ""
+                  }
+                ],
+                "filter": null,
+                "order_bys": {
+                  "type": "ORDER_MODIFIER",
+                  "orders": []
+                },
+                "distinct": false,
+                "is_operator": false,
+                "export_state": false,
+                "catalog": ""
+              },
+              "column_name_alias": []
+            },
+            "where_clause": null,
+            "group_expressions": [],
+            "group_sets": [],
+            "aggregate_handling": "STANDARD_HANDLING",
+            "having": null,
+            "sample": null,
+            "qualify": null
+          }
+        }
+      ]
+    }
+  }
+}
