@@ -56,7 +56,7 @@
     "lru-cache": "^11.0.2"
   },
   "peerDependencies": {
-    "@duckdb/node-api": ">=1.1.0"
+    "@duckdb/node-api": "^1.1.3-alpha.9"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
