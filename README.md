@@ -1,10 +1,10 @@
 # Query AWS Glue Tables efficiently with DuckDB
 
-You can use this module to query AWS Glue Tables from DuckDB while efficiently caching all Glue metadata (tables, partitions) and S3 listings. Both hive partitioning and partition projection based Glue Tables are supported.
+You can use this module to efficiently query AWS Glue Tables from DuckDB while caching all Glue metadata (tables, partitions) and S3 listings.
 
-Convert DuckDB SQL queries reading from Glue Tables to DuckDB Parquet scanning over partition pruned S3 listings by using DuckDB. DuckDB SQL query AST manipulation is used instead of SQL string matching. Both standard Hive-style partitioned tables and AWS Glue partition projection patterns are supported, (except injected projection for now).
+Both hive partitioning and partition projection based Glue Tables are supported. This module converts SQL query to use e.g. `parquet_scan()` function with explicit partition pruned S3 listings without glob patterns so that DuckDB does not need to start listing the files (objects) on S3, which can be very slow.
 
-Glue Tables are assumed to be Parquet based, but we will support also JSON and CSV based Glue Tables.
+DuckDB SQL query AST manipulation is used instead of SQL string matching. Both standard Hive-style partitioned tables and AWS Glue partition projection patterns are supported, (except injected projection for now). Glue Tables are assumed to be Parquet based, but we will support also JSON and CSV based Glue Tables.
 
 ```sql
 -- Original unsupport DuckDB SQL query
