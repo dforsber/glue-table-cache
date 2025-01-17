@@ -204,6 +204,50 @@ describe("Complete View Setup", () => {
     expect(statements[5]).toContain("SET VARIABLE mydb_mytable_gview_files");
     expect(statements[6]).toContain("CREATE OR REPLACE VIEW mydb_mytable_gview");
   });
+
+  it("should generate complete view setup SQL when there are not s3 files", async () => {
+    // Mock Glue response
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "mytable",
+        DatabaseName: "mydb",
+        StorageDescriptor: {
+          Location: "s3://test-bucket/mydb/mytable/",
+          Columns: [],
+        },
+        PartitionKeys: [
+          { Name: "year", Type: "string" },
+          { Name: "month", Type: "string" },
+        ],
+        Parameters: {},
+        TableType: "EXTERNAL_TABLE",
+      },
+    });
+
+    glueMock.on(GetPartitionsCommand).resolves({
+      Partitions: [
+        {
+          Values: ["2024", "01"],
+          StorageDescriptor: {
+            Location: "s3://test-bucket/mydb/mytable/year=2024/month=01",
+          },
+        },
+      ],
+    });
+
+    const cache = new GlueTableCache();
+
+    // Mock S3 listing to return some test files
+    const s3Mock = jest.spyOn(cache as any, "listS3Files");
+    s3Mock.mockResolvedValue([]);
+
+    const statements = await (cache as any)?.getGlueTableViewSetupSql(
+      "SELECT * FROM glue.mydb.mytable"
+    );
+    expect(statements[6]).toContain(
+      "CREATE OR REPLACE VIEW mydb_mytable_gview AS SELECT NULL LIMIT 0;"
+    );
+  });
 });
 
 describe("GlueTableCache Partition Extraction", () => {
