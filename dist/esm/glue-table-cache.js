@@ -59,6 +59,7 @@ export class GlueTableCache {
     close() {
         this.db?.close();
         this.db = undefined;
+        this.sqlTransformer = undefined;
     }
     async getTableMetadata(database, tableName) {
         const key = `${database}.${tableName}`;
@@ -348,7 +349,7 @@ export class GlueTableCache {
             const files = await this.listS3Files(baseLocation, partitionKeys);
             // 1. Create base table for file paths
             statements.push(`CREATE OR REPLACE TABLE "${tblName}_s3_files" AS ` +
-                `SELECT path FROM (VALUES ${files.map((f) => `('${f.path}')`).join(",")}) t(path);`);
+                `SELECT path FROM (VALUES ${files.length ? files.map((f) => `('${f.path}')`).join(",") : "( '' )"}) t(path);`);
             // 2. Create listing table with partition columns
             const extractors = await Promise.all(partitionKeys.map(async (k) => `${await this.getPartitionExtractor(k, metadata)} as ${k}`));
             statements.push(`CREATE OR REPLACE TABLE "${tblName}_s3_listing" AS ` +
@@ -373,7 +374,7 @@ export class GlueTableCache {
             const glueTableViewSql = await this.createGlueTableFilesVarSql(database, table);
             if (glueTableViewSql)
                 statements.push(glueTableViewSql);
-            const viewSqls = await this.sqlTransformer.getGlueTableViewSql(query);
+            const viewSqls = await this.sqlTransformer.getGlueTableViewSql(query, files.length);
             statements.push(...viewSqls);
         }));
         const trimmed = statements.map((stmt) => stmt.trim());

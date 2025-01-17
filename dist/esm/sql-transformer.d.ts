@@ -17,5 +17,5 @@ export declare class SqlTransformer {
     private getComparisonOperator;
     getQueryFilesVarName(database: string, table: string): string;
     getGlueTableFilesVarName(database: string, table: string): string;
-    getGlueTableViewSql(query: string): Promise<string[]>;
+    getGlueTableViewSql(query: string, s3filesLength?: number): Promise<string[]>;
 }
