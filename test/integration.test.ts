@@ -153,6 +153,59 @@ describe("GlueTableCache", () => {
     expect(complexRows[0]).toBeDefined();
   }, 30_000);
 
+  it("should handle partition projection patterns", async () => {
+    const cache = new GlueTableCache();
+    
+    // Test date format projection
+    const datePattern = await (cache as any).getPartitionExtractor("dt", {
+      projectionPatterns: {
+        enabled: true,
+        patterns: {
+          dt: {
+            type: "date",
+            format: "yyyy-MM-dd"
+          }
+        }
+      }
+    });
+    expect(datePattern).toContain("regexp_extract");
+    expect(datePattern).toContain("\\d{4}-\\d{2}-\\d{2}");
+
+    // Test integer projection
+    const intPattern = await (cache as any).getPartitionExtractor("year", {
+      projectionPatterns: {
+        enabled: true,
+        patterns: {
+          year: {
+            type: "integer"
+          }
+        }
+      }
+    });
+    expect(intPattern).toContain("CAST");
+    expect(intPattern).toContain("INTEGER");
+
+    // Test enum projection
+    const enumPattern = await (cache as any).getPartitionExtractor("category", {
+      projectionPatterns: {
+        enabled: true,
+        patterns: {
+          category: {
+            type: "enum"
+          }
+        }
+      }
+    });
+    expect(enumPattern).toContain("regexp_extract");
+    expect(enumPattern).toContain("[^/]+");
+
+    // Test default Hive-style partitioning
+    const hivePattern = await (cache as any).getPartitionExtractor("partition_col", {
+      projectionPatterns: { enabled: false }
+    });
+    expect(hivePattern).toContain("partition_col=([^/]+)");
+  }, 30_000);
+
   it("should list and filter S3 files from athena-examples", async () => {
     const cache = new GlueTableCache();
 

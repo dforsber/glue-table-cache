@@ -317,12 +317,117 @@ describe("GlueTableCache Partition Extraction", () => {
       forceRefreshOnError: true,
       s3ListingRefreshMs: 60000,
     });
-    const result = (cache as any).parseS3Path("s3://bucket/prefix/path");
-
-    expect(result).toEqual({
+    
+    // Test basic path
+    const result1 = (cache as any).parseS3Path("s3://bucket/prefix/path");
+    expect(result1).toEqual({
       bucket: "bucket",
       prefix: "prefix/path",
     });
+
+    // Test path with trailing slash
+    const result2 = (cache as any).parseS3Path("s3://bucket/prefix/path/");
+    expect(result2).toEqual({
+      bucket: "bucket",
+      prefix: "prefix/path/",
+    });
+
+    // Test path with special characters
+    const result3 = (cache as any).parseS3Path("s3://my-bucket.123/path-with_special.chars/");
+    expect(result3).toEqual({
+      bucket: "my-bucket.123",
+      prefix: "path-with_special.chars/",
+    });
+  });
+
+  it("should extract partition values correctly", async () => {
+    const cache = new GlueTableCache();
+    
+    // Test basic partition extraction
+    const values1 = (cache as any).extractPartitionValues(
+      "s3://bucket/path/year=2024/month=01/data.parquet",
+      ["year", "month"]
+    );
+    expect(values1).toEqual({
+      year: "2024",
+      month: "01"
+    });
+
+    // Test with missing partitions
+    const values2 = (cache as any).extractPartitionValues(
+      "s3://bucket/path/year=2024/data.parquet",
+      ["year", "month"]
+    );
+    expect(values2).toEqual({
+      year: "2024"
+    });
+
+    // Test with special characters in values
+    const values3 = (cache as any).extractPartitionValues(
+      "s3://bucket/path/date=2024-01-01/type=special_value.123/data.parquet",
+      ["date", "type"]
+    );
+    expect(values3).toEqual({
+      date: "2024-01-01",
+      type: "special_value.123"
+    });
+  });
+
+  it("should handle date format conversion correctly", async () => {
+    const cache = new GlueTableCache();
+    
+    // Test various date format patterns
+    const patterns = {
+      "yyyy": "\\d{4}",
+      "MM": "\\d{2}",
+      "dd": "\\d{2}",
+      "yyyy-MM-dd": "\\d{4}-\\d{2}-\\d{2}",
+      "yyyy/MM/dd": "\\d{4}/\\d{2}/\\d{2}",
+      "yyyyMMdd": "\\d{4}\\d{2}\\d{2}"
+    };
+
+    for (const [format, expected] of Object.entries(patterns)) {
+      const result = (cache as any).convertDateFormatToRegex(format);
+      expect(result).toBe(expected);
+    }
+  });
+
+  it("should handle connection lifecycle correctly", async () => {
+    const cache = new GlueTableCache();
+    
+    // Test initial state
+    expect((cache as any).db).toBeUndefined();
+    expect((cache as any).sqlTransformer).toBeUndefined();
+
+    // Test connection
+    await (cache as any).connect();
+    expect((cache as any).db).toBeDefined();
+    expect((cache as any).sqlTransformer).toBeDefined();
+
+    // Test close
+    cache.close();
+    expect((cache as any).db).toBeUndefined();
+    expect((cache as any).sqlTransformer).toBeUndefined();
+
+    // Test reconnection after close
+    await (cache as any).connect();
+    expect((cache as any).db).toBeDefined();
+    expect((cache as any).sqlTransformer).toBeDefined();
+  });
+
+  it("should handle errors in runAndReadAll", async () => {
+    const cache = new GlueTableCache();
+    
+    // Test with invalid SQL
+    await expect((cache as any).runAndReadAll("INVALID SQL"))
+      .rejects
+      .toThrow();
+
+    // Test with unconnected DB
+    cache.close();
+    await expect((cache as any).runAndReadAll("SELECT 1"))
+      .resolves
+      .toBeDefined();
   });
 
   it("should handle missing table response", async () => {
