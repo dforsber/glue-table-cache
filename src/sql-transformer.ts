@@ -170,11 +170,7 @@ export class SqlTransformer {
     return null;
   }
 
-  async extractPartitionFilters(
-    query: string,
-    tableName: string,
-    partitionKeys: string[]
-  ): Promise<string[]> {
+  async extractPartitionFilters(query: string, partitionKeys: string[]): Promise<string[]> {
     // Get the AST in JSON format
     const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
     log("Serializing SQL: %s", sqlCmd);

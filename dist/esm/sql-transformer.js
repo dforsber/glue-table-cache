@@ -147,7 +147,7 @@ export class SqlTransformer {
         }
         return null;
     }
-    async extractPartitionFilters(query, tableName, partitionKeys) {
+    async extractPartitionFilters(query, partitionKeys) {
         // Get the AST in JSON format
         const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
         log("Serializing SQL: %s", sqlCmd);
@@ -244,6 +244,9 @@ export class SqlTransformer {
     getGlueTableFilesVarName(database, table) {
         return `${database}_${table}_gview_files`.replaceAll("-", "");
     }
+    getGlueTableViewName(database, table) {
+        return `GLUE__${database}_${table}`.replaceAll("-", "");
+    }
     async getGlueTableViewSql(query, s3filesLength = 1) {
         // Get the AST in JSON format to extract table references
         const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
@@ -267,7 +270,7 @@ export class SqlTransformer {
             const tableKey = `${ref.database}_${ref.table}`;
             if (!processedTables.has(tableKey)) {
                 processedTables.add(tableKey);
-                const tableViewName = `${tableKey}_gview`.replaceAll("-", "");
+                const tableViewName = this.getGlueTableViewName(ref.database, ref.table);
                 const baseQuery = s3filesLength
                     ? `SELECT * FROM parquet_scan(getvariable('${glueTablVarName}'))`
                     : `SELECT NULL LIMIT 0`;

@@ -83,7 +83,7 @@ export class GlueTableCache {
   }
 
   async getTableMetadata(database: string, tableName: string): Promise<CachedTableMetadata> {
-    const key = `${database}.${tableName}`;
+    const key = `${database}_${tableName}`;
     log("Getting table metadata for %s", key);
     const cached = this.tableCache.get(key);
 
@@ -127,7 +127,7 @@ export class GlueTableCache {
 
       return metadata;
     } catch (error) {
-      if (this.config.forceRefreshOnError) this.tableCache.delete(`${database}.${tableName}`);
+      if (this.config.forceRefreshOnError) this.tableCache.delete(`${database}_${tableName}`);
       throw error;
     }
   }
@@ -208,7 +208,7 @@ export class GlueTableCache {
           })) || [],
       };
     } catch (error) {
-      console.warn(`Failed to load partitions for ${database}.${tableName}:`, error);
+      console.warn(`Failed to load partitions for ${database}_${tableName}:`, error);
       return { keys: [], values: [] };
     }
   }
@@ -220,7 +220,7 @@ export class GlueTableCache {
   }
 
   invalidateTable(database: string, tableName: string): void {
-    const key = `${database}.${tableName}`;
+    const key = `${database}_${tableName}`;
     this.tableCache.delete(key);
     // Also invalidate any S3 listings for this table
     for (const cacheKey of this.s3ListingCache.keys()) {
@@ -361,7 +361,7 @@ export class GlueTableCache {
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
-    const tblName = `${database}.${tableName}`;
+    const tblName = `${database}_${tableName}`;
 
     let query = `SELECT path FROM "${tblName}_s3_listing"`;
     if (filters && filters.length > 0) {
@@ -401,7 +401,7 @@ export class GlueTableCache {
         log("Found Glue Table reference: %s", { database, table });
 
         const metadata = await this.getTableMetadata(database, table);
-        const tblName = `${database}.${table}`;
+        const tblName = `${database}_${table}`;
         const baseLocation = metadata.table.StorageDescriptor?.Location;
         if (!baseLocation) {
           throw new Error(`No storage location found for ${tblName}`);
@@ -438,7 +438,6 @@ export class GlueTableCache {
         partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name!);
         const partitionFilters = await this.sqlTransformer.extractPartitionFilters(
           query,
-          tblName,
           partitionKeys
         );
 

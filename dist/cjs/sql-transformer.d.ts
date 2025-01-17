@@ -11,11 +11,12 @@ export declare class SqlTransformer {
     private getAstTableRefs;
     private transformNode;
     private getGlueTableRef;
-    extractPartitionFilters(query: string, tableName: string, partitionKeys: string[]): Promise<string[]>;
+    extractPartitionFilters(query: string, partitionKeys: string[]): Promise<string[]>;
     private findPartitionFilters;
     private extractFiltersFromCondition;
     private getComparisonOperator;
     getQueryFilesVarName(database: string, table: string): string;
     getGlueTableFilesVarName(database: string, table: string): string;
+    getGlueTableViewName(database: string, table: string): string;
     getGlueTableViewSql(query: string, s3filesLength?: number): Promise<string[]>;
 }

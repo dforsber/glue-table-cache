@@ -68,7 +68,7 @@ class GlueTableCache {
         this.sqlTransformer = undefined;
     }
     async getTableMetadata(database, tableName) {
-        const key = `${database}.${tableName}`;
+        const key = `${database}_${tableName}`;
         log("Getting table metadata for %s", key);
         const cached = this.tableCache.get(key);
         if (!cached) {
@@ -106,7 +106,7 @@ class GlueTableCache {
         }
         catch (error) {
             if (this.config.forceRefreshOnError)
-                this.tableCache.delete(`${database}.${tableName}`);
+                this.tableCache.delete(`${database}_${tableName}`);
             throw error;
         }
     }
@@ -175,7 +175,7 @@ class GlueTableCache {
             };
         }
         catch (error) {
-            console.warn(`Failed to load partitions for ${database}.${tableName}:`, error);
+            console.warn(`Failed to load partitions for ${database}_${tableName}:`, error);
             return { keys: [], values: [] };
         }
     }
@@ -185,7 +185,7 @@ class GlueTableCache {
         this.s3ListingCache.clear();
     }
     invalidateTable(database, tableName) {
-        const key = `${database}.${tableName}`;
+        const key = `${database}_${tableName}`;
         this.tableCache.delete(key);
         // Also invalidate any S3 listings for this table
         for (const cacheKey of this.s3ListingCache.keys()) {
@@ -307,7 +307,7 @@ class GlueTableCache {
             this.sqlTransformer = new sql_transformer_js_1.SqlTransformer(this.db);
         if (!this.sqlTransformer)
             throw new Error("SQL transformer not initialized");
-        const tblName = `${database}.${tableName}`;
+        const tblName = `${database}_${tableName}`;
         let query = `SELECT path FROM "${tblName}_s3_listing"`;
         if (filters && filters.length > 0) {
             query += ` WHERE ${filters.join(" AND ")}`;
@@ -346,7 +346,7 @@ class GlueTableCache {
         await Promise.all(tableRefs.map(async ({ database, table }) => {
             log("Found Glue Table reference: %s", { database, table });
             const metadata = await this.getTableMetadata(database, table);
-            const tblName = `${database}.${table}`;
+            const tblName = `${database}_${table}`;
             const baseLocation = metadata.table.StorageDescriptor?.Location;
             if (!baseLocation) {
                 throw new Error(`No storage location found for ${tblName}`);
@@ -368,7 +368,7 @@ class GlueTableCache {
             if (!this.sqlTransformer)
                 throw new Error("SQL transformer not initialized"); // make TS happy
             partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name);
-            const partitionFilters = await this.sqlTransformer.extractPartitionFilters(query, tblName, partitionKeys);
+            const partitionFilters = await this.sqlTransformer.extractPartitionFilters(query, partitionKeys);
             // 5. Query specific partition pruned SQL VARIABLE
             let variableQuery = `SELECT list(path) FROM "${tblName}_s3_listing"`;
             if (partitionFilters.length > 0) {

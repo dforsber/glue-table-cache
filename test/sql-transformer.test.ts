@@ -103,7 +103,7 @@ describe("SqlTransformer", () => {
       `;
       const output = await transformer.transformGlueTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
-      expect(output).not.toContain("glue.mydb.mytable");
+      expect(output).not.toContain("glue.mybdb_mytable");
     });
 
     it("should handle multiple CTEs", async () => {
@@ -575,7 +575,6 @@ describe("SqlTransformer", () => {
     it("should extract simple equality filter", async () => {
       const filters = await transformer.extractPartitionFilters(
         "SELECT * FROM tbl WHERE year = '2024'",
-        "mydb.mytable",
         ["year"]
       );
       expect(filters).toHaveLength(1);
@@ -585,7 +584,6 @@ describe("SqlTransformer", () => {
     it("should handle multiple partition keys", async () => {
       const filters = await transformer.extractPartitionFilters(
         "SELECT * FROM tbl WHERE year = '2024' AND month = '01'",
-        "mydb.mytable",
         ["year", "month"]
       );
       expect(filters).toContain("year = '2024'");
@@ -595,7 +593,6 @@ describe("SqlTransformer", () => {
     it("should ignore non-partition columns", async () => {
       const filters = await transformer.extractPartitionFilters(
         "SELECT * FROM tbl WHERE year = '2024' AND amount > 1000",
-        "mydb.mytable",
         ["year"]
       );
       expect(filters).toHaveLength(1);
@@ -605,7 +602,6 @@ describe("SqlTransformer", () => {
     it("should handle IN conditions", async () => {
       const filters = await transformer.extractPartitionFilters(
         "SELECT * FROM tbl WHERE month IN ('01', '02')",
-        "mydb.mytable",
         ["month"]
       );
       expect(filters).toHaveLength(1);
@@ -615,7 +611,6 @@ describe("SqlTransformer", () => {
     it("should handle complex conditions", async () => {
       const filters = await transformer.extractPartitionFilters(
         "SELECT * FROM tbl WHERE year = '2024' AND (month = '01' OR month = '02')",
-        "mydb.mytable",
         ["year", "month"]
       );
       expect(filters).toContain("year = '2024'");
@@ -624,9 +619,7 @@ describe("SqlTransformer", () => {
     });
 
     it("should handle invalid SQL gracefully", async () => {
-      await expect(
-        transformer.extractPartitionFilters("invalid sql", "mydb.mytable", ["year"])
-      ).rejects.toThrow();
+      await expect(transformer.extractPartitionFilters("invalid sql", ["year"])).rejects.toThrow();
     });
   });
 

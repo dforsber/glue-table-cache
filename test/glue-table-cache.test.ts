@@ -197,8 +197,8 @@ describe("Complete View Setup", () => {
     );
 
     expect(statements).toHaveLength(7); // Base table, listing table, index, variable, view
-    expect(statements[0]).toContain('CREATE OR REPLACE TABLE "mydb.mytable_s3_files"');
-    expect(statements[1]).toContain('CREATE OR REPLACE TABLE "mydb.mytable_s3_listing"');
+    expect(statements[0]).toContain('CREATE OR REPLACE TABLE "mydb_mytable_s3_files"');
+    expect(statements[1]).toContain('CREATE OR REPLACE TABLE "mydb_mytable_s3_listing"');
     expect(statements[2]).toContain("CREATE INDEX");
     expect(statements[4]).toContain("SET VARIABLE mydb_mytable_files");
     expect(statements[5]).toContain("SET VARIABLE mydb_mytable_gview_files");
