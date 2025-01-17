@@ -79,6 +79,7 @@ export class GlueTableCache {
   close(): void {
     this.db?.close();
     this.db = undefined;
+    this.sqlTransformer = undefined;
   }
 
   async getTableMetadata(database: string, tableName: string): Promise<CachedTableMetadata> {
@@ -412,7 +413,7 @@ export class GlueTableCache {
         // 1. Create base table for file paths
         statements.push(
           `CREATE OR REPLACE TABLE "${tblName}_s3_files" AS ` +
-            `SELECT path FROM (VALUES ${files.map((f) => `('${f.path}')`).join(",")}) t(path);`
+            `SELECT path FROM (VALUES ${files.length ? files.map((f) => `('${f.path}')`).join(",") : "( '' )"}) t(path);`
         );
 
         // 2. Create listing table with partition columns
@@ -453,7 +454,7 @@ export class GlueTableCache {
         const glueTableViewSql = await this.createGlueTableFilesVarSql(database, table);
         if (glueTableViewSql) statements.push(glueTableViewSql);
 
-        const viewSqls = await this.sqlTransformer.getGlueTableViewSql(query);
+        const viewSqls = await this.sqlTransformer.getGlueTableViewSql(query, files.length);
         statements.push(...viewSqls);
       })
     );

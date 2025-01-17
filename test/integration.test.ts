@@ -155,7 +155,7 @@ describe("GlueTableCache", () => {
 
   it("should handle partition projection patterns", async () => {
     const cache = new GlueTableCache();
-    
+
     // Test date format projection
     const datePattern = await (cache as any).getPartitionExtractor("dt", {
       projectionPatterns: {
@@ -163,10 +163,10 @@ describe("GlueTableCache", () => {
         patterns: {
           dt: {
             type: "date",
-            format: "yyyy-MM-dd"
-          }
-        }
-      }
+            format: "yyyy-MM-dd",
+          },
+        },
+      },
     });
     expect(datePattern).toContain("regexp_extract");
     expect(datePattern).toContain("\\d{4}-\\d{2}-\\d{2}");
@@ -177,10 +177,10 @@ describe("GlueTableCache", () => {
         enabled: true,
         patterns: {
           year: {
-            type: "integer"
-          }
-        }
-      }
+            type: "integer",
+          },
+        },
+      },
     });
     expect(intPattern).toContain("CAST");
     expect(intPattern).toContain("INTEGER");
@@ -191,17 +191,17 @@ describe("GlueTableCache", () => {
         enabled: true,
         patterns: {
           category: {
-            type: "enum"
-          }
-        }
-      }
+            type: "enum",
+          },
+        },
+      },
     });
     expect(enumPattern).toContain("regexp_extract");
     expect(enumPattern).toContain("[^/]+");
 
     // Test default Hive-style partitioning
     const hivePattern = await (cache as any).getPartitionExtractor("partition_col", {
-      projectionPatterns: { enabled: false }
+      projectionPatterns: { enabled: false },
     });
     expect(hivePattern).toContain("partition_col=([^/]+)");
   }, 30_000);
