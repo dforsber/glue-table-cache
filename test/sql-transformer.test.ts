@@ -780,7 +780,7 @@ describe("SqlTransformer", () => {
         "SELECT col1, col2 FROM glue.mydb.mytable WHERE id > 100"
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW mydb_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_gview_files'));"
+        "CREATE OR REPLACE VIEW GLUE__mydb_mytable AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_gview_files'));"
       );
     });
 
@@ -789,7 +789,7 @@ describe("SqlTransformer", () => {
         'SELECT col1, col2 FROM "glue"."mydb-with-dash"."mytable" WHERE id > 100'
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW mydbwithdash_mytable_gview AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
+        "CREATE OR REPLACE VIEW GLUE__mydbwithdash_mytable AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
       );
     });
 
@@ -799,9 +799,9 @@ describe("SqlTransformer", () => {
          FROM glue.db1.table1 t1 
          JOIN glue.db2.table2 t2 ON t1.id = t2.id`
       );
-      expect(viewSql[0]).toContain("CREATE OR REPLACE VIEW db1_table1_gview AS");
+      expect(viewSql[0]).toContain("CREATE OR REPLACE VIEW GLUE__db1_table1 AS");
       expect(viewSql[0]).toContain("parquet_scan(getvariable('db1_table1_gview_files'))");
-      expect(viewSql[1]).toContain("CREATE OR REPLACE VIEW db2_table2_gview AS");
+      expect(viewSql[1]).toContain("CREATE OR REPLACE VIEW GLUE__db2_table2 AS");
       expect(viewSql[1]).toContain("parquet_scan(getvariable('db2_table2_gview_files'))");
     });
   });

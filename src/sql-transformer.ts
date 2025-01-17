@@ -292,6 +292,10 @@ export class SqlTransformer {
     return `${database}_${table}_gview_files`.replaceAll("-", "");
   }
 
+  public getGlueTableViewName(database: string, table: string): string {
+    return `GLUE__${database}_${table}`.replaceAll("-", "");
+  }
+
   async getGlueTableViewSql(query: string, s3filesLength = 1): Promise<string[]> {
     // Get the AST in JSON format to extract table references
     const sqlCmd = `SELECT json_serialize_sql('${query.replace(/'/g, "''")}')`;
@@ -316,7 +320,7 @@ export class SqlTransformer {
       const tableKey = `${ref.database}_${ref.table}`;
       if (!processedTables.has(tableKey)) {
         processedTables.add(tableKey);
-        const tableViewName = `${tableKey}_gview`.replaceAll("-", "");
+        const tableViewName = this.getGlueTableViewName(ref.database, ref.table);
         const baseQuery = s3filesLength
           ? `SELECT * FROM parquet_scan(getvariable('${glueTablVarName}'))`
           : `SELECT NULL LIMIT 0`;

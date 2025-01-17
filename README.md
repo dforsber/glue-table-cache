@@ -110,7 +110,7 @@ console.log(convertedQuery);
 
   -- There is a view as well, if you happen to check SHOW TABLES, 
   --  but it is query specific!
-  CREATE OR REPLACE VIEW mydatabase_mytable_gview AS 
+  CREATE OR REPLACE VIEW GLUE__mydatabase_mytable AS 
     SELECT * FROM parquet_scan(getvariable('default_mytable_gview_files'));
 
   WITH monthly_stats AS (

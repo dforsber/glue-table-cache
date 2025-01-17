@@ -202,7 +202,7 @@ describe("Complete View Setup", () => {
     expect(statements[2]).toContain("CREATE INDEX");
     expect(statements[4]).toContain("SET VARIABLE mydb_mytable_files");
     expect(statements[5]).toContain("SET VARIABLE mydb_mytable_gview_files");
-    expect(statements[6]).toContain("CREATE OR REPLACE VIEW mydb_mytable_gview");
+    expect(statements[6]).toContain("CREATE OR REPLACE VIEW GLUE__mydb_mytable");
   });
 
   it("should generate complete view setup SQL when there are not s3 files", async () => {
@@ -245,7 +245,7 @@ describe("Complete View Setup", () => {
       "SELECT * FROM glue.mydb.mytable"
     );
     expect(statements[6]).toContain(
-      "CREATE OR REPLACE VIEW mydb_mytable_gview AS SELECT NULL LIMIT 0;"
+      "CREATE OR REPLACE VIEW GLUE__mydb_mytable AS SELECT NULL LIMIT 0;"
     );
   });
 });
