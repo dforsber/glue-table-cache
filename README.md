@@ -31,6 +31,7 @@ SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 - 🚀 LRU (Least Recently Used) caching mechanism for Glue metadata and S3 listings
   - ⏰ Configurable TTL for cache entries
   - 🔄 Automatic cache invalidation and refresh
+- [ ] Allow setting local HTTP proxy block cache for accessing S3 files, so that the s3 URLs are converted to e.g. `http://localhost:3203/BUCKET/PREFIX`
 - 🔒 Type-safe TypeScript implementation
 - NOTE: DuckDB `json_serialize_sql()` does not support e.g. COPY statements
 
