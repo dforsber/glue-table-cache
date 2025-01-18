@@ -75,6 +75,7 @@ const cache = new GlueTableCache({
   forceRefreshOnError: true, // Invalidate cache on errors
   glueTableMetadataTtlMs: 3600000, // Cache TTL: 1 hour
   s3ListingRefreshMs: 3600000, // S3 listing cache TTL: 1 hour
+  proxyAddress: "http://localhost:3203/", // Optional: Use S3 HTTP proxy cache: s3://... => http://localhost:3203/...
 });
 
 // The query above gets converted to use parquet_scan, for each Glue Table reference.
@@ -157,6 +158,7 @@ constructor(region: string, config?: CacheConfig)
   - `maxEntries`: Maximum cache entries (default: 100)
   - `forceRefreshOnError`: Whether to invalidate cache on errors (default: true)
   - `s3ListingRefreshMs`: S3 listing cache TTL in milliseconds (default: 5 minutes)
+  - `proxyAddress`: (optional) Converts s3://BUCK/PREF -> <proxyAddress>BUCK/PREF
 
 ### Key Methods
 

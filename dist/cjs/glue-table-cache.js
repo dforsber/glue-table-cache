@@ -18,6 +18,7 @@ const defaultConfig = {
     forceRefreshOnError: true,
     glueTableMetadataTtlMs: 3600000, // 1 hour
     s3ListingRefreshMs: 3600000, // 1 hour
+    proxyAddress: undefined,
 };
 class GlueTableCache {
     tableCache;
@@ -34,6 +35,19 @@ class GlueTableCache {
             ...config,
             region: config?.region || process.env.AWS_REGION || defaultConfig.region,
         };
+        if (this.config.proxyAddress) {
+            try {
+                new URL(this.config.proxyAddress);
+                if (!this.config.proxyAddress.endsWith("/")) {
+                    this.config.proxyAddress = this.config.proxyAddress + "/";
+                }
+                log("Using proxyAddress:", this.config.proxyAddress);
+            }
+            catch (err) {
+                console.error(err);
+                config.proxyAddress = undefined;
+            }
+        }
         this.glueClient = new client_glue_1.GlueClient({ region: config.region });
         this.s3Client = new client_s3_1.S3Client({ region: config.region });
         // Initialize metadata cache
@@ -314,6 +328,10 @@ class GlueTableCache {
         }
         // Create a list of paths as a string array
         const safeVarName = this.sqlTransformer?.getGlueTableFilesVarName(database, tableName);
+        if (this.config.proxyAddress) {
+            // For example: s3:// --> https://locahost:3203/
+            return `SET VARIABLE ${safeVarName} = ( SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM (${query}));`;
+        }
         return `SET VARIABLE ${safeVarName} = ( SELECT list(path) FROM (${query}));`;
     }
     async convertGlueTableQuery(query) {
@@ -371,6 +389,11 @@ class GlueTableCache {
             const partitionFilters = await this.sqlTransformer.extractPartitionFilters(query, partitionKeys);
             // 5. Query specific partition pruned SQL VARIABLE
             let variableQuery = `SELECT list(path) FROM "${tblName}_s3_listing"`;
+            if (this.config.proxyAddress) {
+                // For example: s3:// --> https://locahost:3203/
+                //return `SET VARIABLE ${safeVarName} = ( SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM (${query}));`;
+                variableQuery = `SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM "${tblName}_s3_listing"`;
+            }
             if (partitionFilters.length > 0) {
                 variableQuery += ` WHERE ${partitionFilters.join(" AND ")}`;
             }

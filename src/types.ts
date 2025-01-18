@@ -34,6 +34,7 @@ export interface CacheConfig {
   forceRefreshOnError: boolean;
   glueTableMetadataTtlMs: number;
   s3ListingRefreshMs: number;
+  proxyAddress?: string;
 }
 
 export interface CacheEntry<T> {
