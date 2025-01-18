@@ -1,6 +1,6 @@
 {
   "name": "glue-table-cache",
-  "version": "0.9.16",
+  "version": "0.9.17",
   "description": "Map Glue Table SQL to parquet scan with partition pruned S3 list, along with LRU metadata cache",
   "type": "module",
   "main": "dist/esm/index.js",
