@@ -44,10 +44,10 @@ describe("S3 Utilities", () => {
 
   describe("extractPartitionValues", () => {
     it("should extract basic partition values", () => {
-      const values = extractPartitionValues(
-        "s3://bucket/path/year=2024/month=01/data.parquet",
-        ["year", "month"]
-      );
+      const values = extractPartitionValues("s3://bucket/path/year=2024/month=01/data.parquet", [
+        "year",
+        "month",
+      ]);
       expect(values).toEqual({
         year: "2024",
         month: "01",
@@ -55,10 +55,10 @@ describe("S3 Utilities", () => {
     });
 
     it("should handle missing partitions", () => {
-      const values = extractPartitionValues(
-        "s3://bucket/path/year=2024/data.parquet",
-        ["year", "month"]
-      );
+      const values = extractPartitionValues("s3://bucket/path/year=2024/data.parquet", [
+        "year",
+        "month",
+      ]);
       expect(values).toEqual({
         year: "2024",
       });
@@ -76,18 +76,12 @@ describe("S3 Utilities", () => {
     });
 
     it("should handle empty partition keys array", () => {
-      const values = extractPartitionValues(
-        "s3://bucket/path/year=2024/month=01/data.parquet",
-        []
-      );
+      const values = extractPartitionValues("s3://bucket/path/year=2024/month=01/data.parquet", []);
       expect(values).toEqual({});
     });
 
     it("should handle paths without partitions", () => {
-      const values = extractPartitionValues(
-        "s3://bucket/path/data.parquet",
-        ["year", "month"]
-      );
+      const values = extractPartitionValues("s3://bucket/path/data.parquet", ["year", "month"]);
       expect(values).toEqual({});
     });
   });
@@ -113,9 +107,7 @@ describe("S3 Utilities", () => {
           NextContinuationToken: "token1",
         })
         .resolvesOnce({
-          Contents: [
-            { Key: "test-prefix/year=2024/file3.parquet" },
-          ],
+          Contents: [{ Key: "test-prefix/year=2024/file3.parquet" }],
         });
 
       const result = await listS3Objects(
@@ -130,11 +122,9 @@ describe("S3 Utilities", () => {
     });
 
     it("should handle empty response", async () => {
-      s3Mock
-        .on(ListObjectsV2Command)
-        .resolves({
-          Contents: [],
-        });
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [],
+      });
 
       const result = await listS3Objects(
         s3Mock as unknown as S3Client,
@@ -146,14 +136,12 @@ describe("S3 Utilities", () => {
     });
 
     it("should filter out folder markers", async () => {
-      s3Mock
-        .on(ListObjectsV2Command)
-        .resolves({
-          Contents: [
-            { Key: "test-prefix/year=2024/file1.parquet" },
-            { Key: "test-prefix/year=2024/_$folder$" },
-          ],
-        });
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [
+          { Key: "test-prefix/year=2024/file1.parquet" },
+          { Key: "test-prefix/year=2024/_$folder$" },
+        ],
+      });
 
       const result = await listS3Objects(
         s3Mock as unknown as S3Client,

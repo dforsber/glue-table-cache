@@ -3,6 +3,9 @@ import { S3FileInfo } from "../types.js";
 
 export function parseS3Path(s3Path: string): { bucket: string; prefix: string } {
   const url = new URL(s3Path);
+  if (!s3Path.startsWith("s3://") && !s3Path.startsWith("S3://")) {
+    throw new Error(`Not an S3 URL: ${url.protocol}`);
+  }
   return {
     bucket: url.hostname,
     prefix: url.pathname.substring(1), // remove leading '/'

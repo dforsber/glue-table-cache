@@ -53,7 +53,7 @@ export class GlueTableCache {
         log("Using proxyAddress:", this.config.proxyAddress);
       } catch (err) {
         console.error(err);
-        config.proxyAddress = undefined;
+        this.config.proxyAddress = undefined;
       }
     }
     this.glueClient = new GlueClient({ region: config.region });
