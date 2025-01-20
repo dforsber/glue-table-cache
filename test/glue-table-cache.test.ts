@@ -67,6 +67,80 @@ describe("GlueTableCache", () => {
     await cache.getTableMetadataCached("test_db", "test_table");
     expect(glueMock.calls().length).toBe(2);
   });
+
+  it("should handle SQL transformation errors", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_table",
+        DatabaseName: "test_db",
+        StorageDescriptor: {
+          Location: "s3://test-bucket/data/",
+        },
+      },
+    });
+
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    s3Mock.mockResolvedValue([]);
+
+    // Invalid SQL should throw
+    await expect(cache.convertGlueTableQuery(
+      "INVALID SQL FROM glue.test_db.test_table"
+    )).rejects.toThrow();
+  });
+
+  it("should handle multiple table references", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_table",
+        DatabaseName: "test_db",
+        StorageDescriptor: {
+          Location: "s3://test-bucket/data/",
+        },
+      },
+    });
+
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    s3Mock.mockResolvedValue([
+      { path: "s3://test-bucket/data/file1.parquet" },
+    ]);
+
+    const query = `
+      SELECT a.col1, b.col2 
+      FROM glue.test_db.table1 a
+      JOIN glue.test_db.table2 b ON a.id = b.id
+    `;
+
+    const convertedQuery = await cache.convertGlueTableQuery(query);
+    
+    // Should handle both table references
+    expect(convertedQuery).toContain("test_db_table1_files");
+    expect(convertedQuery).toContain("test_db_table2_files");
+  });
+
+  it("should handle table name with hyphens", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test-table",
+        DatabaseName: "test-db",
+        StorageDescriptor: {
+          Location: "s3://test-bucket/data/",
+        },
+      },
+    });
+
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    s3Mock.mockResolvedValue([
+      { path: "s3://test-bucket/data/file1.parquet" },
+    ]);
+
+    const varName = (cache as any).sqlTransformer?.getQueryFilesVarName(
+      "test-db", 
+      "test-table"
+    );
+
+    // Hyphens should be removed from variable names
+    expect(varName).not.toContain("-");
+  });
 });
 
 describe("Complete View Setup", () => {
@@ -271,6 +345,61 @@ describe("GlueTableCache Partition Extraction", () => {
     await expect(async () => {
       await cache.getTableMetadataCached("test_db", "missing_table");
     }).rejects.toThrow("Table test_db.missing_table not found");
+  });
+
+  it("should handle proxy address configuration", async () => {
+    const cache = new GlueTableCache({
+      proxyAddress: "https://localhost:3203",
+    });
+
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_table",
+        DatabaseName: "test_db",
+        StorageDescriptor: {
+          Location: "s3://test-bucket/data/",
+        },
+      },
+    });
+
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    s3Mock.mockResolvedValue([
+      { path: "s3://test-bucket/data/file1.parquet" },
+    ]);
+
+    const statements = await (cache as any).getGlueTableViewSetupSql(
+      "SELECT * FROM glue.test_db.test_table"
+    );
+
+    // Verify proxy address is used in SQL
+    expect(statements.some(sql => 
+      sql.includes("'https://localhost:3203/")
+    )).toBeTruthy();
+  });
+
+  it("should handle invalid proxy address", async () => {
+    const cache = new GlueTableCache({
+      proxyAddress: "not-a-url",
+    });
+    
+    // Should fallback to direct S3 paths
+    expect((cache as any).config.proxyAddress).toBeUndefined();
+  });
+
+  it("should handle missing StorageDescriptor location", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_table",
+        DatabaseName: "test_db",
+        StorageDescriptor: {
+          // Location missing
+        },
+      },
+    });
+
+    await expect((cache as any).getGlueTableViewSetupSql(
+      "SELECT * FROM glue.test_db.test_table"
+    )).rejects.toThrow("No storage location found");
   });
 
   it("should handle JSON array format in projection range", async () => {
