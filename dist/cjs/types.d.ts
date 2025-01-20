@@ -1,10 +1,20 @@
 import { Table } from "@aws-sdk/client-glue";
+import { Mutex } from "async-mutex";
+export declare enum ETableType {
+    HIVE = "HIVE",
+    ICEBERG = "ICEBERG",
+    HUDI = "HUDI",
+    DELTA = "DELTA",
+    GLUE_PROJECTED = "GLUE_PROJECTED",
+    UNPARTITIONED = "UNPARTITIONED"
+}
 export interface S3FileInfo {
     path: string;
     partitionValues: Record<string, string>;
 }
 export interface CachedTableMetadata {
     timestamp: number;
+    tableType: ETableType;
     table: Table;
     partitionMetadata?: {
         keys: string[];
@@ -27,14 +37,20 @@ export interface ProjectionPattern {
 export interface CacheConfig {
     region: string;
     maxEntries: number;
-    forceRefreshOnError: boolean;
     glueTableMetadataTtlMs: number;
     s3ListingRefresTtlhMs: number;
+    credentials?: {
+        accessKeyId: string;
+        secretAccessKey: string;
+        sessionToken?: string;
+    };
     proxyAddress?: string;
 }
 export interface CacheEntry<T> {
+    mutex: Mutex;
+    error?: any;
     timestamp: number;
-    data: T;
+    data: T | undefined;
 }
 export interface TableReference {
     database: string;

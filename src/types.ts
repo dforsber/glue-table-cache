@@ -1,4 +1,5 @@
 import { Table } from "@aws-sdk/client-glue";
+import { Mutex } from "async-mutex";
 
 export enum ETableType {
   HIVE = "HIVE",
@@ -41,15 +42,18 @@ export interface ProjectionPattern {
 export interface CacheConfig {
   region: string;
   maxEntries: number;
-  forceRefreshOnError: boolean;
   glueTableMetadataTtlMs: number;
   s3ListingRefresTtlhMs: number;
+  credentials?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
   proxyAddress?: string;
 }
 
 export interface CacheEntry<T> {
+  mutex: Mutex;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error?: any;
   timestamp: number;
-  data: T;
+  data: T | undefined;
 }
 
 export interface TableReference {

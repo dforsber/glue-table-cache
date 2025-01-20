@@ -5,4 +5,5 @@ export declare function parseS3Path(s3Path: string): {
     prefix: string;
 };
 export declare function extractPartitionValues(path: string, partitionKeys: string[]): Record<string, string>;
+export declare function mapS3PathsToInfo(s3paths: string[], partitionKeys: string[]): S3FileInfo[];
 export declare function listS3Objects(s3cli: S3Client, s3path: string, partitionKeys: string[]): Promise<S3FileInfo[]>;

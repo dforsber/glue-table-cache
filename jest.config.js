@@ -3,7 +3,7 @@ export default {
   preset: "ts-jest",
   testEnvironment: "node",
   roots: ["<rootDir>/test"],
-  testMatch: ["**/*.test.ts"],
+  testMatch: ["**/*test.ts"],
   transform: {
     "^.+\\.tsx?$": "ts-jest",
   },
@@ -14,9 +14,5 @@ export default {
   collectCoverage: true,
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov"],
-  collectCoverageFrom: [
-    "src/**/*.{ts,tsx}",
-    "!src/**/*.d.ts",
-    "!src/**/types.ts"
-  ],
+  collectCoverageFrom: ["src/**/*.{ts,tsx}", "!src/**/*.d.ts", "!src/**/types.ts"],
 };

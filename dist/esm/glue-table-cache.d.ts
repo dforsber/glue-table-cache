@@ -9,14 +9,21 @@ export declare class GlueTableCache {
     private sqlTransformer;
     private config;
     constructor(config?: Partial<CacheConfig>);
-    private connect;
+    setCredentials(credentials: {
+        accessKeyId: string;
+        secretAccessKey: string;
+        sessionToken?: string;
+    }): void;
+    private __connect;
     clearCache(): void;
     close(): void;
-    private runAndReadAll;
-    getTableMetadataCached(database: string, tableName: string): Promise<CachedTableMetadata>;
+    private getCacheKeyWithMutex;
+    getTableMetadataCached(database: string, tableName: string): Promise<CachedTableMetadata | undefined>;
     invalidateTable(database: string, tableName: string): void;
-    private listS3FilesCached;
     createGlueTableFilesVarSql(database: string, tableName: string, filters?: string[]): Promise<string>;
     convertGlueTableQuery(query: string): Promise<string>;
-    private getGlueTableViewSetupSql;
+    getGlueTableViewSetupSql(query: string): Promise<string[]>;
+    private __listS3IcebergFilesCached;
+    private __listS3FilesCached;
+    private __runAndReadAll;
 }

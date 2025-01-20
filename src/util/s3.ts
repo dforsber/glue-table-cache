@@ -24,40 +24,35 @@ export function extractPartitionValues(
   return values;
 }
 
+export function mapS3PathsToInfo(s3paths: string[], partitionKeys: string[]): S3FileInfo[] {
+  return s3paths.map((path) => ({
+    path,
+    partitionValues: extractPartitionValues(path, partitionKeys),
+  }));
+}
+
 export async function listS3Objects(
   s3cli: S3Client,
   s3path: string,
   partitionKeys: string[]
 ): Promise<S3FileInfo[]> {
-  const { bucket, prefix } = parseS3Path(s3path);
-  const files: S3FileInfo[] = [];
+  const { bucket: Bucket, prefix } = parseS3Path(s3path);
+  const s3paths: string[] = [];
 
   // Ensure prefix ends with "/"
-  const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  const Prefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
-  let continuationToken: string | undefined;
+  let ContinuationToken: string | undefined;
   do {
-    const command = new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: normalizedPrefix,
-      ContinuationToken: continuationToken,
-      MaxKeys: 1000,
-    });
-
+    const command = new ListObjectsV2Command({ Bucket, Prefix, ContinuationToken });
     const response = await s3cli.send(command);
+    s3paths.push(
+      ...(response.Contents?.map((o) => `s3://${Bucket}/${o.Key}`).filter(
+        (k) => !k.endsWith("_$folder$")
+      ) ?? [])
+    );
+    ContinuationToken = response.NextContinuationToken;
+  } while (ContinuationToken);
 
-    if (response.Contents) {
-      for (const object of response.Contents) {
-        if (object.Key && !object.Key.includes("_$folder$")) {
-          const path = `s3://${bucket}/${object.Key}`;
-          const partitionValues = extractPartitionValues(path, partitionKeys);
-          files.push({ path, partitionValues });
-        }
-      }
-    }
-
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-
-  return files;
+  return mapS3PathsToInfo(s3paths.filter(Boolean), partitionKeys);
 }

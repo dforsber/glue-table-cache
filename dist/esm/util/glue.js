@@ -1,20 +1,44 @@
 import { GetPartitionsCommand, GetTableCommand, } from "@aws-sdk/client-glue";
+import { ETableType } from "../types.js";
+import debug from "debug";
+const log = debug("glue-api");
+function getTableType(tbl) {
+    const p = tbl.Parameters ?? {};
+    if (p.table_type === "ICEBERG")
+        return ETableType.ICEBERG;
+    if (p["projection.enabled"] === "true")
+        return ETableType.GLUE_PROJECTED;
+    if (tbl.PartitionKeys && tbl.PartitionKeys.length)
+        return ETableType.HIVE;
+    return ETableType.UNPARTITIONED;
+}
 export async function getGlueTableMetadata(gluecli, DatabaseName, Name) {
-    const tableRequest = { DatabaseName, Name };
-    const tableResponse = await gluecli.send(new GetTableCommand(tableRequest));
-    const table = tableResponse.Table;
-    if (!table)
-        throw new Error(`Table ${DatabaseName}.${Name} not found`);
-    const metadata = { timestamp: Date.now(), table: table };
-    // Handle partition projection if enabled
-    if (table.Parameters?.["projection.enabled"] === "true") {
-        metadata.projectionPatterns = parseProjectionPatterns(table.Parameters);
+    try {
+        const tableRequest = { DatabaseName, Name };
+        const tableResponse = await gluecli.send(new GetTableCommand(tableRequest));
+        const table = tableResponse.Table;
+        if (!table)
+            throw new Error(`Table ${DatabaseName}.${Name} not found`);
+        // Glue Table Parameters include for example:
+        //  table_type: ICEBERG
+        //  metadata_location: 's3://athena-results-dforsber/iceberg_table/metadata/00000-f607b49b-1780-421e-bf2b-6b00cc16230e.metadata.json'
+        const tableType = getTableType(table);
+        const metadata = { timestamp: Date.now(), table: table, tableType };
+        // Handle partition projection if enabled
+        if (tableType === ETableType.GLUE_PROJECTED && table.Parameters) {
+            metadata.projectionPatterns = parseProjectionPatterns(table.Parameters);
+        }
+        else if (tableType === ETableType.HIVE) {
+            // Load partition metadata for standard partitioned tables
+            metadata.partitionMetadata = await loadPartitionMetadata(gluecli, DatabaseName, Name);
+        }
+        return metadata;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }
-    else if (table.PartitionKeys && table.PartitionKeys.length > 0) {
-        // Load partition metadata for standard partitioned tables
-        metadata.partitionMetadata = await loadPartitionMetadata(gluecli, DatabaseName, Name);
+    catch (err) {
+        log("getGlueTableMetadata ERROR:", err);
+        throw err;
     }
-    return metadata;
 }
 function parseProjectionValue(property, value) {
     switch (property) {

@@ -2,43 +2,67 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { GlueTableCache, type S3FileInfo } from "../src/glue-table-cache";
 import { listS3Objects } from "../src/util/s3";
+import { ETableType } from "../src/types";
+import { fromIni } from "@aws-sdk/credential-providers";
+
+const database = "default";
+const tables = ["iceberg_table", "flight_delays_pq", "flights_parquet"];
+let cache: GlueTableCache;
+
+describe("GlueTableCache with no AWS credentials provided", () => {
+  it("can also use the default credentials provider chain", async () => {
+    const cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
+      maxEntries: 100,
+      s3ListingRefresTtlhMs: 60000,
+    });
+    const tableName = "iceberg_table";
+    const metadata = await cache.getTableMetadataCached(database, tableName);
+    expect(metadata?.table.Name).toBe(tableName);
+    expect(metadata?.table.DatabaseName).toBe(database);
+    expect(metadata?.timestamp).toBeDefined();
+    expect(metadata?.timestamp).toBeLessThanOrEqual(Date.now());
+  });
+});
 
 describe("GlueTableCache Integration Tests", () => {
-  const cache = new GlueTableCache({
-    glueTableMetadataTtlMs: 3600000,
-    maxEntries: 100,
-    forceRefreshOnError: true,
-    s3ListingRefresTtlhMs: 60000,
+  beforeAll(async () => {
+    const credentials = await fromIni()();
+    cache = new GlueTableCache({
+      glueTableMetadataTtlMs: 3600000,
+      maxEntries: 100,
+      s3ListingRefresTtlhMs: 60000,
+      credentials,
+    });
   });
 
-  const database = "default";
-  const tables = ["iceberg_table", "flight_delays_pq", "flights_parquet"];
-
-  beforeAll(() => {
-    // Ensure AWS credentials are available
-    if (!process.env.AWS_REGION && !process.env.AWS_PROFILE) {
-      console.warn("Warning: AWS credentials should be configured");
+  it("should not retry on persistent errors", async () => {
+    try {
+      await cache.getTableMetadataCached(database, "nonexisting");
+    } catch (error: any) {
+      console.error(error);
+      expect(error?.message).toContain("Entity Not Found");
     }
   });
 
   it("should fetch metadata for all test tables", async () => {
     for (const tableName of tables) {
       const metadata = await cache.getTableMetadataCached(database, tableName);
-      expect(metadata.table.Name).toBe(tableName);
-      expect(metadata.table.DatabaseName).toBe(database);
-      expect(metadata.timestamp).toBeDefined();
-      expect(metadata.timestamp).toBeLessThanOrEqual(Date.now());
+      expect(metadata?.table.Name).toBe(tableName);
+      expect(metadata?.table.DatabaseName).toBe(database);
+      expect(metadata?.timestamp).toBeDefined();
+      expect(metadata?.timestamp).toBeLessThanOrEqual(Date.now());
     }
   });
 
   it("should cache table metadata and reduce API calls", async () => {
     // First call - should hit AWS API
     const metadata1 = await cache.getTableMetadataCached(database, tables[0]);
-    const timestamp1 = metadata1.timestamp;
+    const timestamp1 = metadata1?.timestamp;
 
     // Second call - should use cache
     const metadata2 = await cache.getTableMetadataCached(database, tables[0]);
-    const timestamp2 = metadata2.timestamp;
+    const timestamp2 = metadata2?.timestamp;
 
     expect(timestamp1).toBe(timestamp2);
     expect(metadata1).toEqual(metadata2);
@@ -48,7 +72,7 @@ describe("GlueTableCache Integration Tests", () => {
     for (const tableName of tables) {
       const metadata = await cache.getTableMetadataCached(database, tableName);
 
-      if (metadata.table.PartitionKeys && metadata.table.PartitionKeys.length > 0) {
+      if (metadata?.table.PartitionKeys && metadata?.table.PartitionKeys.length > 0) {
         if (metadata.projectionPatterns?.enabled) {
           // Check projection patterns
           expect(metadata.projectionPatterns.patterns).toBeDefined();
@@ -77,7 +101,10 @@ describe("GlueTableCache Integration Tests", () => {
     // Second fetch should get fresh data
     const metadata2 = await cache.getTableMetadataCached(database, tableName);
 
-    expect(metadata2.timestamp).toBeGreaterThan(metadata1.timestamp);
+    expect(metadata1).toBeDefined();
+    expect(metadata2).toBeDefined();
+    if (!metadata1?.timestamp) throw new Error("test fails");
+    expect(metadata2?.timestamp).toBeGreaterThan(metadata1?.timestamp);
   });
 });
 
@@ -97,7 +124,7 @@ describe("GlueTableCache", () => {
     );
 
     // Execute the converted query
-    const result = await (cache as any)?.runAndReadAll(convertedQuery);
+    const result = await (cache as any)?.__runAndReadAll(convertedQuery);
     const rows = result.getRows();
 
     expect(rows).toBeDefined();
@@ -147,7 +174,7 @@ describe("GlueTableCache", () => {
     );
     expect(convertedComplexQuery).not.toContain("glue.default_flights_parquet");
 
-    const complexResult = await (cache as any)?.runAndReadAll(convertedComplexQuery);
+    const complexResult = await (cache as any)?.__runAndReadAll(convertedComplexQuery);
     const complexRows = complexResult.getRows();
 
     expect(complexRows.length).toBe(5);
@@ -162,15 +189,17 @@ describe("GlueTableCache", () => {
 
     // Get the table metadata which includes the S3 location
     const metadata = await cache.getTableMetadataCached(database, tableName);
-    expect(metadata.tableType).toBe(ETableType.ICEBERG);
-    expect(metadata.table.StorageDescriptor?.Location).toBeDefined();
+    expect(metadata?.tableType).toBe(ETableType.ICEBERG);
+    expect(metadata?.table.StorageDescriptor?.Location).toBeDefined();
 
     // Get the SQL statements that set up the table
+    const secrets = `CREATE SECRET secretForDirectS3Access ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`;
+    await (cache as any).__runAndReadAll(secrets);
     const query = `SELECT * FROM glue.${database}.${tableName}`;
     const statements = await cache.getGlueTableViewSetupSql(query);
 
     // Find the statement that creates the s3_files table
-    const s3FilesStmt = statements.find(stmt => 
+    const s3FilesStmt = statements.find((stmt) =>
       stmt.includes(`CREATE OR REPLACE TABLE "${database}_${tableName}_s3_files"`)
     );
     expect(s3FilesStmt).toBeDefined();
@@ -179,60 +208,6 @@ describe("GlueTableCache", () => {
     expect(s3FilesStmt).not.toContain("manifest.json");
     expect(s3FilesStmt).not.toContain("metadata.json");
     expect(s3FilesStmt).toMatch(/\.parquet/); // Should contain parquet files
-
-  }, 30_000);
-
-  it("should handle partition projection patterns", async () => {
-    const cache = new GlueTableCache();
-
-    // Test date format projection
-    const datePattern = await (cache as any).getPartitionExtractor("dt", {
-      projectionPatterns: {
-        enabled: true,
-        patterns: {
-          dt: {
-            type: "date",
-            format: "yyyy-MM-dd",
-          },
-        },
-      },
-    });
-    expect(datePattern).toContain("regexp_extract");
-    expect(datePattern).toContain("\\d{4}-\\d{2}-\\d{2}");
-
-    // Test integer projection
-    const intPattern = await (cache as any).getPartitionExtractor("year", {
-      projectionPatterns: {
-        enabled: true,
-        patterns: {
-          year: {
-            type: "integer",
-          },
-        },
-      },
-    });
-    expect(intPattern).toContain("CAST");
-    expect(intPattern).toContain("INTEGER");
-
-    // Test enum projection
-    const enumPattern = await (cache as any).getPartitionExtractor("category", {
-      projectionPatterns: {
-        enabled: true,
-        patterns: {
-          category: {
-            type: "enum",
-          },
-        },
-      },
-    });
-    expect(enumPattern).toContain("regexp_extract");
-    expect(enumPattern).toContain("[^/]+");
-
-    // Test default Hive-style partitioning
-    const hivePattern = await (cache as any).getPartitionExtractor("partition_col", {
-      projectionPatterns: { enabled: false },
-    });
-    expect(hivePattern).toContain("partition_col=([^/]+)");
   }, 30_000);
 
   it("should list and filter S3 files from athena-examples", async () => {

@@ -72,7 +72,6 @@ const query = `
 const cache = new GlueTableCache({
   region: "eu-west-1", // AWS region
   maxEntries: 100, // Maximum number of tables / listings per cache
-  forceRefreshOnError: true, // Invalidate cache on errors
   glueTableMetadataTtlMs: 3600000, // Cache TTL: 1 hour
   s3ListingRefreshMs: 3600000, // S3 listing cache TTL: 1 hour
   proxyAddress: "http://localhost:3203/", // Optional: Use S3 HTTP proxy cache: s3://... => http://localhost:3203/...
@@ -156,7 +155,6 @@ constructor(region: string, config?: CacheConfig)
 - `config`: Optional configuration object
   - `ttlMs`: Metadata cache TTL in milliseconds (default: 1 hour)
   - `maxEntries`: Maximum cache entries (default: 100)
-  - `forceRefreshOnError`: Whether to invalidate cache on errors (default: true)
   - `s3ListingRefreshMs`: S3 listing cache TTL in milliseconds (default: 5 minutes)
   - `proxyAddress`: (optional) Converts s3://BUCK/PREF -> <proxyAddress>BUCK/PREF
 

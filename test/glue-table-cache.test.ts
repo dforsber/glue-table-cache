@@ -29,7 +29,6 @@ describe("GlueTableCache", () => {
     const cache = new GlueTableCache({
       glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
-      forceRefreshOnError: true,
       s3ListingRefresTtlhMs: 60000,
     });
     await cache.getTableMetadataCached("test_db", "test_table");
@@ -52,7 +51,6 @@ describe("GlueTableCache", () => {
     const cache = new GlueTableCache({
       glueTableMetadataTtlMs: 100, // Short TTL for testing
       maxEntries: 10,
-      forceRefreshOnError: true,
       s3ListingRefresTtlhMs: 60000, // Add this line
     });
 
@@ -268,14 +266,12 @@ describe("GlueTableCache Partition Extraction", () => {
   it("should handle error cases", async () => {
     glueMock.on(GetTableCommand).rejects(new Error("AWS Error"));
 
-    const cache = new GlueTableCache({
-      forceRefreshOnError: true,
-    });
+    const cache = new GlueTableCache({});
 
     await expect(cache.getTableMetadataCached("test_db", "error_table")).rejects.toThrow(
       "AWS Error"
     );
-    expect(glueMock.calls().length).toBe(1);
+    expect(glueMock.calls().length).toBe(4); // retries
   });
 
   it("should handle connection lifecycle correctly", async () => {
@@ -389,7 +385,8 @@ describe("GlueTableCache Partition Extraction", () => {
     });
 
     const metadata = await cache.getTableMetadataCached("test_db", "json_range");
-    expect(metadata.projectionPatterns?.patterns.year.range).toEqual([2020, 2021, 2022]);
+    expect(metadata).toBeDefined();
+    expect(metadata?.projectionPatterns?.patterns.year.range).toEqual([2020, 2021, 2022]);
   });
 
   it("should handle comma-separated format in projection range", async () => {
@@ -410,6 +407,7 @@ describe("GlueTableCache Partition Extraction", () => {
     });
 
     const metadata = await cache.getTableMetadataCached("test_db", "csv_range");
-    expect(metadata.projectionPatterns?.patterns.year.range).toEqual(["2020", "2021", "2022"]);
+    expect(metadata).toBeDefined();
+    expect(metadata?.projectionPatterns?.patterns.year.range).toEqual(["2020", "2021", "2022"]);
   });
 });
