@@ -162,4 +162,148 @@ describe("glue", () => {
       getGlueTableMetadata(glueCli, "test_db", "nonexistent")
     ).rejects.toThrow("Table test_db.nonexistent not found");
   });
+
+  describe("getPartitionExtractor", () => {
+    it("should handle date projection patterns", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {
+            dt: {
+              type: "date",
+              format: "yyyy-MM-dd"
+            }
+          }
+        }
+      };
+
+      const extractor = await getPartitionExtractor("dt", metadata);
+      expect(extractor).toBe("regexp_extract(path, '(\\d{4}-\\d{2}-\\d{2})', 1)");
+    });
+
+    it("should handle integer projection patterns", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {
+            year: {
+              type: "integer",
+              range: [2020, 2024]
+            }
+          }
+        }
+      };
+
+      const extractor = await getPartitionExtractor("year", metadata);
+      expect(extractor).toBe("CAST(regexp_extract(path, '/([0-9]+)/', 1) AS INTEGER)");
+    });
+
+    it("should handle enum projection patterns", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {
+            category: {
+              type: "enum",
+              values: ["books", "movies"]
+            }
+          }
+        }
+      };
+
+      const extractor = await getPartitionExtractor("category", metadata);
+      expect(extractor).toBe("regexp_extract(path, '/([^/]+)/[^/]*$', 1)");
+    });
+
+    it("should throw error for injected projection patterns", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {
+            id: {
+              type: "injected"
+            }
+          }
+        }
+      };
+
+      await expect(getPartitionExtractor("id", metadata))
+        .rejects.toThrow("Injected partition values not supported yet");
+    });
+
+    it("should throw error for unknown projection type", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {
+            test: {
+              type: "unknown" as any
+            }
+          }
+        }
+      };
+
+      await expect(getPartitionExtractor("test", metadata))
+        .rejects.toThrow("Unsupported projection type: unknown");
+    });
+
+    it("should throw error for missing projection pattern", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any,
+        projectionPatterns: {
+          enabled: true,
+          patterns: {}
+        }
+      };
+
+      await expect(getPartitionExtractor("missing", metadata))
+        .rejects.toThrow("No projection pattern found for partition key missing");
+    });
+
+    it("should default to Hive-style partitioning when no projection", async () => {
+      const metadata = {
+        timestamp: Date.now(),
+        table: {} as any
+      };
+
+      const extractor = await getPartitionExtractor("year", metadata);
+      expect(extractor).toBe("regexp_extract(path, 'year=([^/]+)', 1)");
+    });
+  });
+
+  describe("parseProjectionPatterns", () => {
+    it("should handle empty parameters", () => {
+      const result = parseProjectionPatterns({});
+      expect(result).toEqual({ enabled: true, patterns: {} });
+    });
+
+    it("should ignore non-projection parameters", () => {
+      const result = parseProjectionPatterns({
+        "some.other.param": "value",
+        "projection.enabled": "true"
+      });
+      expect(result).toEqual({ enabled: true, patterns: {} });
+    });
+
+    it("should handle malformed JSON values gracefully", () => {
+      const params = {
+        "projection.enabled": "true",
+        "projection.dt.type": "date",
+        "projection.dt.values": "{malformed json}"
+      };
+      
+      expect(() => parseProjectionPatterns(params)).not.toThrow();
+    });
+  });
 });
