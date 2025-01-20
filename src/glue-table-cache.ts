@@ -89,6 +89,8 @@ export class GlueTableCache {
     secretAccessKey: string;
     sessionToken?: string;
   }) {
+    log("Setting credentials -- accessKeyId:", credentials.accessKeyId);
+    if (credentials.secretAccessKey.length <= 0) throw new Error("No secretAccessKey");
     this.config.credentials = credentials;
   }
 

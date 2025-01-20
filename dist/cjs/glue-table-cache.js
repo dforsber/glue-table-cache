@@ -72,6 +72,9 @@ class GlueTableCache {
         });
     }
     setCredentials(credentials) {
+        log("Setting credentials -- accessKeyId:", credentials.accessKeyId);
+        if (credentials.secretAccessKey.length <= 0)
+            throw new Error("No secretAccessKey");
         this.config.credentials = credentials;
     }
     // because constructor can't be async and we don't want the clients to worry about this
