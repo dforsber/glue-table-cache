@@ -27,7 +27,7 @@
   "private": false,
   "exports": {
     "import": "./dist/esm/index.js",
-    "require": "./dist/cjs/index.js"
+    "require": "./dist/cjs/index.cjs"
   },
   "standard-version": {
     "scripts": {
@@ -36,7 +36,7 @@
   },
   "scripts": {
     "release": "standard-version -a",
-    "build": "rm -rf dist/ && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && node esbuild.config.js",
+    "build": "rm -rf dist/ && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && node esbuild.config.js && mv dist/cjs/index.js dist/cjs/index.cjs",
     "test": "jest",
     "example": "yarn build && NODE_OPTIONS='--loader ts-node/esm' ts-node example.ts",
     "test:unit": "jest test/*.test.ts",
