@@ -6,7 +6,7 @@ describe("GlueTableCache Integration Tests", () => {
     glueTableMetadataTtlMs: 3600000,
     maxEntries: 100,
     forceRefreshOnError: true,
-    s3ListingRefreshMs: 60000,
+    s3ListingRefresTtlhMs: 60000,
   });
 
   const database = "default";

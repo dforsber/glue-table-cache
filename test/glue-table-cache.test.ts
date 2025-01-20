@@ -52,7 +52,7 @@ describe("GlueTableCache", () => {
       glueTableMetadataTtlMs: 3600000,
       maxEntries: 10,
       forceRefreshOnError: true,
-      s3ListingRefreshMs: 60000, // Add this line
+      s3ListingRefresTtlhMs: 60000, // Add this line
     });
 
     // First call should hit AWS
@@ -88,7 +88,7 @@ describe("GlueTableCache", () => {
       glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
-      s3ListingRefreshMs: 60000,
+      s3ListingRefresTtlhMs: 60000,
     });
     const metadata = await cache.getTableMetadata("test_db", "test_projection");
 
@@ -111,7 +111,7 @@ describe("GlueTableCache", () => {
       glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
-      s3ListingRefreshMs: 60000,
+      s3ListingRefresTtlhMs: 60000,
     });
     await cache.getTableMetadata("test_db", "test_table");
     expect(glueMock.calls().length).toBe(1);
@@ -134,7 +134,7 @@ describe("GlueTableCache", () => {
       glueTableMetadataTtlMs: 100, // Short TTL for testing
       maxEntries: 10,
       forceRefreshOnError: true,
-      s3ListingRefreshMs: 60000, // Add this line
+      s3ListingRefresTtlhMs: 60000, // Add this line
     });
 
     // First call
@@ -315,7 +315,7 @@ describe("GlueTableCache Partition Extraction", () => {
       glueTableMetadataTtlMs: 3600000,
       maxEntries: 100,
       forceRefreshOnError: true,
-      s3ListingRefreshMs: 60000,
+      s3ListingRefresTtlhMs: 60000,
     });
 
     // Test basic path

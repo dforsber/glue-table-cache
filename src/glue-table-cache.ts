@@ -28,7 +28,7 @@ const defaultConfig: CacheConfig = {
   maxEntries: 100,
   forceRefreshOnError: true,
   glueTableMetadataTtlMs: 3600000, // 1 hour
-  s3ListingRefreshMs: 3600000, // 1 hour
+  s3ListingRefresTtlhMs: 3600000, // 1 hour
   proxyAddress: undefined,
 };
 
@@ -72,7 +72,7 @@ export class GlueTableCache {
     // Initialize S3 listing cache
     this.s3ListingCache = new LRUCache({
       max: this.config.maxEntries,
-      ttl: this.config.s3ListingRefreshMs,
+      ttl: this.config.s3ListingRefresTtlhMs,
     });
   }
 
