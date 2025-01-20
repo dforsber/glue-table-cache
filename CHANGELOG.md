@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.9.18](https://github.com/dforsber/glue-table-cache/compare/v0.9.17...v0.9.18) (2025-01-20)
+
+
+### Features
+
+* Add integration test for Iceberg table S3 data file listing ([2a88a15](https://github.com/dforsber/glue-table-cache/commit/2a88a1538de0447cebc119b25ef6a77688fbdc82))
+
 ### [0.9.17](https://github.com/dforsber/glue-table-cache/compare/v0.9.16...v0.9.17) (2025-01-18)
 
 ### [0.9.16](https://github.com/dforsber/glue-table-cache/compare/v0.9.15...v0.9.16) (2025-01-17)
