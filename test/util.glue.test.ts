@@ -90,4 +90,76 @@ describe("glue", () => {
     expect(metadata1.partitionMetadata?.values.length).toBe(2);
     expect(glueMock.calls().length).toBe(2); // GetTable + GetPartitions
   });
+  it("should handle error when loading partitions", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_error",
+        DatabaseName: "test_db",
+        PartitionKeys: [{ Name: "dt", Type: "string" }],
+        Parameters: {},
+      },
+    });
+
+    glueMock.on(GetPartitionsCommand).rejects(new Error("Failed to get partitions"));
+
+    const metadata = await getGlueTableMetadata(glueCli, "test_db", "test_error");
+    expect(metadata.partitionMetadata).toEqual({ keys: [], values: [] });
+  });
+
+  it("should handle different projection types", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_projections",
+        DatabaseName: "test_db",
+        PartitionKeys: [
+          { Name: "year", Type: "string" },
+          { Name: "category", Type: "string" },
+          { Name: "id", Type: "string" },
+        ],
+        Parameters: {
+          "projection.enabled": "true",
+          "projection.year.type": "integer",
+          "projection.year.range": "[2020,2024]",
+          "projection.category.type": "enum",
+          "projection.category.values": '["books","movies","music"]',
+          "projection.id.type": "injected",
+        },
+      },
+    });
+
+    const metadata = await getGlueTableMetadata(glueCli, "test_db", "test_projections");
+    
+    expect(metadata.projectionPatterns?.patterns.year.type).toBe("integer");
+    expect(metadata.projectionPatterns?.patterns.category.type).toBe("enum");
+    expect(metadata.projectionPatterns?.patterns.category.values).toEqual(["books", "movies", "music"]);
+    expect(metadata.projectionPatterns?.patterns.id.type).toBe("injected");
+  });
+
+  it("should parse comma-separated range values", async () => {
+    glueMock.on(GetTableCommand).resolves({
+      Table: {
+        Name: "test_ranges",
+        DatabaseName: "test_db",
+        PartitionKeys: [{ Name: "month", Type: "string" }],
+        Parameters: {
+          "projection.enabled": "true",
+          "projection.month.type": "integer",
+          "projection.month.range": "1,2,3,4,5,6,7,8,9,10,11,12",
+        },
+      },
+    });
+
+    const metadata = await getGlueTableMetadata(glueCli, "test_db", "test_ranges");
+    expect(metadata.projectionPatterns?.patterns.month.range).toEqual([
+      "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
+    ]);
+  });
+
+  it("should throw error for missing table", async () => {
+    glueMock.on(GetTableCommand).resolves({});
+
+    await expect(
+      getGlueTableMetadata(glueCli, "test_db", "nonexistent")
+    ).rejects.toThrow("Table test_db.nonexistent not found");
+  });
 });
