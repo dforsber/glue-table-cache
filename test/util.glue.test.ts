@@ -7,7 +7,7 @@ import {
   parseProjectionPatterns,
 } from "../src/util/glue";
 import { mockClient } from "aws-sdk-client-mock";
-import { CachedTableMetadata } from "../src/types";
+import { CachedTableMetadata, ETableType } from "../src/types";
 
 const glueMock = mockClient(GlueClient);
 let glueCli: GlueClient;
@@ -190,6 +190,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {
@@ -209,6 +210,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {
@@ -228,6 +230,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {
@@ -247,6 +250,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {
@@ -266,6 +270,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {
@@ -285,6 +290,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
         projectionPatterns: {
           enabled: true,
           patterns: {},
@@ -300,6 +306,7 @@ describe("glue", () => {
       const metadata: CachedTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
+        tableType: ETableType.UNPARTITIONED,
       };
 
       const extractor = await getPartitionExtractor("year", metadata);

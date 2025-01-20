@@ -1,5 +1,14 @@
 import { Table } from "@aws-sdk/client-glue";
 
+export enum ETableType {
+  HIVE = "HIVE",
+  ICEBERG = "ICEBERG",
+  HUDI = "HUDI",
+  DELTA = "DELTA",
+  GLUE_PROJECTED = "GLUE_PROJECTED",
+  UNPARTITIONED = "UNPARTITIONED",
+}
+
 export interface S3FileInfo {
   path: string;
   partitionValues: Record<string, string>;
@@ -7,6 +16,7 @@ export interface S3FileInfo {
 
 export interface CachedTableMetadata {
   timestamp: number;
+  tableType: ETableType;
   table: Table;
   partitionMetadata?: {
     keys: string[];
