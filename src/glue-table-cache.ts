@@ -73,7 +73,7 @@ export class GlueTableCache {
   }
 
   // because constructor can't be async and we don't want the clients to worry about this
-  private async connect(): Promise<DuckDBConnection> {
+  private async __connect(): Promise<DuckDBConnection> {
     if (!this.db) this.db = await (await DuckDBInstance.create(":memory:")).connect();
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     return this.db;
@@ -135,7 +135,7 @@ export class GlueTableCache {
     tableName: string,
     filters?: string[]
   ): Promise<string> {
-    if (!this.db) await this.connect();
+    if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
@@ -156,7 +156,7 @@ export class GlueTableCache {
   }
 
   public async convertGlueTableQuery(query: string): Promise<string> {
-    if (!this.db) await this.connect();
+    if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
@@ -167,7 +167,7 @@ export class GlueTableCache {
   }
 
   public async getGlueTableViewSetupSql(query: string): Promise<string[]> {
-    if (!this.db) await this.connect();
+    if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
@@ -273,7 +273,7 @@ export class GlueTableCache {
 
   // tests use this
   private async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
-    if (!this.db) await this.connect();
+    if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     return this.db.runAndReadAll(query);
   }

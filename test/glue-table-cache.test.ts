@@ -286,7 +286,7 @@ describe("GlueTableCache Partition Extraction", () => {
     expect((cache as any).sqlTransformer).toBeUndefined();
 
     // Test connection
-    await (cache as any).connect();
+    await (cache as any).__connect();
     expect((cache as any).db).toBeDefined();
     expect((cache as any).sqlTransformer).toBeDefined();
 
@@ -296,7 +296,7 @@ describe("GlueTableCache Partition Extraction", () => {
     expect((cache as any).sqlTransformer).toBeUndefined();
 
     // Test reconnection after close
-    await (cache as any).connect();
+    await (cache as any).__connect();
     expect((cache as any).db).toBeDefined();
     expect((cache as any).sqlTransformer).toBeDefined();
   });
