@@ -305,11 +305,11 @@ describe("GlueTableCache Partition Extraction", () => {
     const cache = new GlueTableCache();
 
     // Test with invalid SQL
-    await expect((cache as any).runAndReadAll("INVALID SQL")).rejects.toThrow();
+    await expect((cache as any).__runAndReadAll("INVALID SQL")).rejects.toThrow();
 
     // Test with unconnected DB
     cache.close();
-    await expect((cache as any).runAndReadAll("SELECT 1")).resolves.toBeDefined();
+    await expect((cache as any).__runAndReadAll("SELECT 1")).resolves.toBeDefined();
   });
 
   it("should handle missing table response", async () => {

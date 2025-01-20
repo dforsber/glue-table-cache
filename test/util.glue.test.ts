@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { GetPartitionsCommand, GetTableCommand, GlueClient } from "@aws-sdk/client-glue";
 import {
   convertDateFormatToRegex,

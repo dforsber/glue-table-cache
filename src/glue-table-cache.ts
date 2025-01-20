@@ -90,7 +90,7 @@ export class GlueTableCache {
   }
 
   // tests use this
-  private async runAndReadAll(query: string): Promise<DuckDBResultReader> {
+  private async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
     if (!this.db) await this.connect();
     if (!this.db) throw new Error("DB not connected");
     return this.db.runAndReadAll(query);
