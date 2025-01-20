@@ -29,7 +29,7 @@ export interface CacheConfig {
     maxEntries: number;
     forceRefreshOnError: boolean;
     glueTableMetadataTtlMs: number;
-    s3ListingRefreshMs: number;
+    s3ListingRefresTtlhMs: number;
     proxyAddress?: string;
 }
 export interface CacheEntry<T> {

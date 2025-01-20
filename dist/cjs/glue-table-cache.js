@@ -10,6 +10,8 @@ const lru_cache_1 = require("lru-cache");
 const node_api_1 = require("@duckdb/node-api");
 const debug_1 = __importDefault(require("debug"));
 const sql_transformer_js_1 = require("./sql-transformer.js");
+const s3_js_1 = require("./util/s3.js");
+const glue_js_1 = require("./util/glue.js");
 const log = (0, debug_1.default)("glue-table-cache");
 const logAws = (0, debug_1.default)("glue-table-cache:aws");
 const defaultConfig = {
@@ -17,7 +19,7 @@ const defaultConfig = {
     maxEntries: 100,
     forceRefreshOnError: true,
     glueTableMetadataTtlMs: 3600000, // 1 hour
-    s3ListingRefreshMs: 3600000, // 1 hour
+    s3ListingRefresTtlhMs: 3600000, // 1 hour
     proxyAddress: undefined,
 };
 class GlueTableCache {
@@ -58,8 +60,24 @@ class GlueTableCache {
         // Initialize S3 listing cache
         this.s3ListingCache = new lru_cache_1.LRUCache({
             max: this.config.maxEntries,
-            ttl: this.config.s3ListingRefreshMs,
+            ttl: this.config.s3ListingRefresTtlhMs,
         });
+    }
+    async connect() {
+        if (!this.db)
+            this.db = await (await node_api_1.DuckDBInstance.create(":memory:")).connect();
+        if (!this.sqlTransformer)
+            this.sqlTransformer = new sql_transformer_js_1.SqlTransformer(this.db);
+        return this.db;
+    }
+    clearCache() {
+        this.tableCache.clear();
+        this.s3ListingCache.clear();
+    }
+    close() {
+        this.db?.close();
+        this.db = undefined;
+        this.sqlTransformer = undefined;
     }
     // tests use this
     async runAndReadAll(query) {
@@ -69,134 +87,31 @@ class GlueTableCache {
             throw new Error("DB not connected");
         return this.db.runAndReadAll(query);
     }
-    async connect() {
-        if (!this.db)
-            this.db = await (await node_api_1.DuckDBInstance.create(":memory:")).connect();
-        if (!this.sqlTransformer)
-            this.sqlTransformer = new sql_transformer_js_1.SqlTransformer(this.db);
-        return this.db;
-    }
-    close() {
-        this.db?.close();
-        this.db = undefined;
-        this.sqlTransformer = undefined;
-    }
-    async getTableMetadata(database, tableName) {
+    async getTableMetadataCached(database, tableName) {
         const key = `${database}_${tableName}`;
         log("Getting table metadata for %s", key);
         const cached = this.tableCache.get(key);
         if (!cached) {
             log("Cache miss for %s, refreshing...", key);
-            const metadata = await this.refreshTableMetadata(database, tableName);
-            const now = Date.now();
-            const entry = {
-                timestamp: now,
-                data: metadata,
-            };
-            this.tableCache.set(key, entry);
-            return metadata;
+            try {
+                logAws("Fetching table metadata from AWS for %s.%s", database, tableName);
+                const metadata = await (0, glue_js_1.getGlueTableMetadata)(this.glueClient, database, tableName);
+                const now = Date.now();
+                const entry = {
+                    timestamp: now,
+                    data: metadata,
+                };
+                this.tableCache.set(key, entry);
+                return metadata;
+            }
+            catch (error) {
+                if (this.config.forceRefreshOnError)
+                    this.tableCache.delete(`${database}_${tableName}`);
+                throw error;
+            }
         }
         log("Cache hit for %s", key);
         return cached.data;
-    }
-    async refreshTableMetadata(database, tableName) {
-        try {
-            logAws("Fetching table metadata from AWS for %s.%s", database, tableName);
-            const tableRequest = { DatabaseName: database, Name: tableName };
-            const tableResponse = await this.glueClient.send(new client_glue_1.GetTableCommand(tableRequest));
-            const table = tableResponse.Table;
-            if (!table)
-                throw new Error(`Table ${database}.${tableName} not found`);
-            const metadata = { timestamp: Date.now(), table: table };
-            // Handle partition projection if enabled
-            if (table.Parameters?.["projection.enabled"] === "true") {
-                metadata.projectionPatterns = this.parseProjectionPatterns(table.Parameters);
-            }
-            else if (table.PartitionKeys && table.PartitionKeys.length > 0) {
-                // Load partition metadata for standard partitioned tables
-                metadata.partitionMetadata = await this.loadPartitionMetadata(database, tableName);
-            }
-            return metadata;
-        }
-        catch (error) {
-            if (this.config.forceRefreshOnError)
-                this.tableCache.delete(`${database}_${tableName}`);
-            throw error;
-        }
-    }
-    parseProjectionValue(property, value) {
-        switch (property) {
-            case "type":
-                return value;
-            case "format":
-                return value;
-            case "range":
-                // Handle both JSON array format and comma-separated format
-                try {
-                    return JSON.parse(value);
-                }
-                catch {
-                    return value.split(",").map((v) => v.trim());
-                }
-            case "values":
-                return JSON.parse(value);
-            default:
-                return value;
-        }
-    }
-    parseProjectionPatterns(parameters) {
-        const patterns = {};
-        Object.entries(parameters)
-            .filter(([key]) => key.startsWith("projection."))
-            .forEach(([key, value]) => {
-            const match = key.match(/projection\.(\w+)\.(type|range|format|values)/);
-            if (match) {
-                const [_, column, property] = match;
-                if (!patterns[column]) {
-                    patterns[column] = { type: "enum" };
-                }
-                if (property === "type" ||
-                    property === "format" ||
-                    property === "range" ||
-                    property === "values") {
-                    patterns[column][property] = this.parseProjectionValue(property, value);
-                }
-            }
-        });
-        return {
-            enabled: true,
-            patterns,
-        };
-    }
-    async loadPartitionMetadata(database, tableName) {
-        // Implementation for loading standard partition metadata
-        const command = new client_glue_1.GetPartitionsCommand({
-            DatabaseName: database,
-            TableName: tableName,
-            // Add pagination handling for large partition sets
-        });
-        try {
-            const response = await this.glueClient.send(command);
-            if (!response.Partitions || response.Partitions.length === 0) {
-                return { keys: [], values: [] };
-            }
-            return {
-                keys: response.Partitions[0].Values || [],
-                values: response.Partitions.map((p) => ({
-                    values: p.Values || [],
-                    location: p.StorageDescriptor?.Location,
-                })) || [],
-            };
-        }
-        catch (error) {
-            console.warn(`Failed to load partitions for ${database}_${tableName}:`, error);
-            return { keys: [], values: [] };
-        }
-    }
-    // Utility methods for cache management
-    clearCache() {
-        this.tableCache.clear();
-        this.s3ListingCache.clear();
     }
     invalidateTable(database, tableName) {
         const key = `${database}_${tableName}`;
@@ -208,23 +123,7 @@ class GlueTableCache {
             }
         }
     }
-    parseS3Path(s3Path) {
-        const url = new URL(s3Path);
-        return {
-            bucket: url.hostname,
-            prefix: url.pathname.substring(1), // remove leading '/'
-        };
-    }
-    extractPartitionValues(path, partitionKeys) {
-        const values = {};
-        for (const key of partitionKeys) {
-            const match = path.match(new RegExp(`${key}=([^/]+)`));
-            if (match)
-                values[key] = match[1];
-        }
-        return values;
-    }
-    async listS3Files(s3Path, partitionKeys) {
+    async listS3FilesCached(s3Path, partitionKeys) {
         const cacheKey = `${s3Path}:${partitionKeys.join(",")}`;
         const cached = this.s3ListingCache.get(cacheKey);
         if (cached) {
@@ -232,85 +131,11 @@ class GlueTableCache {
             return cached.data;
         }
         logAws("Listing S3 files for %s", s3Path);
-        const { bucket, prefix } = this.parseS3Path(s3Path);
-        const files = [];
-        // Ensure prefix ends with "/"
-        const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
-        let continuationToken;
-        do {
-            const command = new client_s3_1.ListObjectsV2Command({
-                Bucket: bucket,
-                Prefix: normalizedPrefix,
-                ContinuationToken: continuationToken,
-                MaxKeys: 1000,
-            });
-            const response = await this.s3Client.send(command);
-            if (response.Contents) {
-                for (const object of response.Contents) {
-                    if (object.Key && !object.Key.includes("_$folder$")) {
-                        const path = `s3://${bucket}/${object.Key}`;
-                        const partitionValues = this.extractPartitionValues(path, partitionKeys);
-                        files.push({ path, partitionValues });
-                    }
-                }
-            }
-            continuationToken = response.NextContinuationToken;
-        } while (continuationToken);
+        const files = await (0, s3_js_1.listS3Objects)(this.s3Client, s3Path, partitionKeys);
         // Cache the results
         const now = Date.now();
         this.s3ListingCache.set(cacheKey, { timestamp: now, data: files });
         return files;
-    }
-    async getPartitionExtractor(key, metadata) {
-        // Check if this is a projection-enabled table
-        if (metadata.projectionPatterns?.enabled) {
-            const pattern = metadata.projectionPatterns.patterns[key];
-            if (!pattern) {
-                throw new Error(`No projection pattern found for partition key ${key}`);
-            }
-            // Handle different projection types
-            switch (pattern.type) {
-                case "date":
-                    // For date projections, use the format pattern to build regex
-                    const dateFormat = pattern.format || "yyyy-MM-dd";
-                    const dateRegex = this.convertDateFormatToRegex(dateFormat);
-                    return `regexp_extract(path, '(${dateRegex})', 1)`;
-                case "integer":
-                    // For integer projections, extract full numeric values
-                    return "CAST(regexp_extract(path, '/([0-9]+)/', 1) AS INTEGER)";
-                case "enum":
-                    // For enum projections, extract the last path component before the filename
-                    return "regexp_extract(path, '/([^/]+)/[^/]*$', 1)";
-                case "injected":
-                    // For injected values, extract them from the SQL query filters
-                    // The query must contain static equality conditions
-                    if (!this.sqlTransformer)
-                        await this.connect();
-                    if (!this.sqlTransformer)
-                        throw new Error("SQL transformer not initialized");
-                    throw new Error("Injected partition values not supported yet");
-                default:
-                    throw new Error(`Unsupported projection type: ${pattern.type}`);
-            }
-        }
-        // Default to Hive-style partitioning
-        return `regexp_extract(path, '${key}=([^/]+)', 1)`;
-    }
-    convertDateFormatToRegex(format) {
-        // Convert Java SimpleDateFormat patterns to regex patterns
-        const conversions = {
-            yyyy: "\\d{4}",
-            MM: "\\d{2}",
-            dd: "\\d{2}",
-            HH: "\\d{2}",
-            mm: "\\d{2}",
-            ss: "\\d{2}",
-        };
-        let regex = format;
-        for (const [pattern, replacement] of Object.entries(conversions)) {
-            regex = regex.replace(pattern, replacement);
-        }
-        return regex;
     }
     async createGlueTableFilesVarSql(database, tableName, filters) {
         if (!this.db)
@@ -363,19 +188,19 @@ class GlueTableCache {
         log("Found Glue Table references: %O", tableRefs);
         await Promise.all(tableRefs.map(async ({ database, table }) => {
             log("Found Glue Table reference: %s", { database, table });
-            const metadata = await this.getTableMetadata(database, table);
+            const metadata = await this.getTableMetadataCached(database, table);
             const tblName = `${database}_${table}`;
             const baseLocation = metadata.table.StorageDescriptor?.Location;
             if (!baseLocation) {
                 throw new Error(`No storage location found for ${tblName}`);
             }
             let partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name);
-            const files = await this.listS3Files(baseLocation, partitionKeys);
+            const files = await this.listS3FilesCached(baseLocation, partitionKeys);
             // 1. Create base table for file paths
             statements.push(`CREATE OR REPLACE TABLE "${tblName}_s3_files" AS ` +
                 `SELECT path FROM (VALUES ${files.length ? files.map((f) => `('${f.path}')`).join(",") : "( '' )"}) t(path);`);
             // 2. Create listing table with partition columns
-            const extractors = await Promise.all(partitionKeys.map(async (k) => `${await this.getPartitionExtractor(k, metadata)} as ${k}`));
+            const extractors = await Promise.all(partitionKeys.map(async (k) => `${await (0, glue_js_1.getPartitionExtractor)(k, metadata)} as ${k}`));
             statements.push(`CREATE OR REPLACE TABLE "${tblName}_s3_listing" AS ` +
                 `SELECT path, ${extractors.join(", ")} FROM "${tblName}_s3_files";`);
             // 3. Create indexes on partition columns
@@ -391,7 +216,6 @@ class GlueTableCache {
             let variableQuery = `SELECT list(path) FROM "${tblName}_s3_listing"`;
             if (this.config.proxyAddress) {
                 // For example: s3:// --> https://locahost:3203/
-                //return `SET VARIABLE ${safeVarName} = ( SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM (${query}));`;
                 variableQuery = `SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM "${tblName}_s3_listing"`;
             }
             if (partitionFilters.length > 0) {

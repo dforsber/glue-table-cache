@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { S3Client } from "@aws-sdk/client-s3";
 import { GlueTableCache, type S3FileInfo } from "../src/glue-table-cache";
+import { listS3Objects } from "../src/util/s3";
 
 describe("GlueTableCache Integration Tests", () => {
   const cache = new GlueTableCache({
@@ -21,7 +23,7 @@ describe("GlueTableCache Integration Tests", () => {
 
   it("should fetch metadata for all test tables", async () => {
     for (const tableName of tables) {
-      const metadata = await cache.getTableMetadata(database, tableName);
+      const metadata = await cache.getTableMetadataCached(database, tableName);
       expect(metadata.table.Name).toBe(tableName);
       expect(metadata.table.DatabaseName).toBe(database);
       expect(metadata.timestamp).toBeDefined();
@@ -31,11 +33,11 @@ describe("GlueTableCache Integration Tests", () => {
 
   it("should cache table metadata and reduce API calls", async () => {
     // First call - should hit AWS API
-    const metadata1 = await cache.getTableMetadata(database, tables[0]);
+    const metadata1 = await cache.getTableMetadataCached(database, tables[0]);
     const timestamp1 = metadata1.timestamp;
 
     // Second call - should use cache
-    const metadata2 = await cache.getTableMetadata(database, tables[0]);
+    const metadata2 = await cache.getTableMetadataCached(database, tables[0]);
     const timestamp2 = metadata2.timestamp;
 
     expect(timestamp1).toBe(timestamp2);
@@ -44,7 +46,7 @@ describe("GlueTableCache Integration Tests", () => {
 
   it("should handle partition information correctly", async () => {
     for (const tableName of tables) {
-      const metadata = await cache.getTableMetadata(database, tableName);
+      const metadata = await cache.getTableMetadataCached(database, tableName);
 
       if (metadata.table.PartitionKeys && metadata.table.PartitionKeys.length > 0) {
         if (metadata.projectionPatterns?.enabled) {
@@ -67,13 +69,13 @@ describe("GlueTableCache Integration Tests", () => {
     const tableName = tables[0];
 
     // First fetch
-    const metadata1 = await cache.getTableMetadata(database, tableName);
+    const metadata1 = await cache.getTableMetadataCached(database, tableName);
 
     // Invalidate cache
     cache.invalidateTable(database, tableName);
 
     // Second fetch should get fresh data
-    const metadata2 = await cache.getTableMetadata(database, tableName);
+    const metadata2 = await cache.getTableMetadataCached(database, tableName);
 
     expect(metadata2.timestamp).toBeGreaterThan(metadata1.timestamp);
   });
@@ -207,10 +209,10 @@ describe("GlueTableCache", () => {
   }, 30_000);
 
   it("should list and filter S3 files from athena-examples", async () => {
-    const cache = new GlueTableCache();
-
     // Use the actual S3 path
-    const s3Files = await (cache as any).listS3Files(
+    const s3cli = new S3Client();
+    const s3Files = await listS3Objects(
+      s3cli,
       "s3://athena-examples-eu-west-1/flight/parquet/",
       []
     );

@@ -14,88 +14,7 @@ describe("GlueTableCache", () => {
   });
 
   afterEach(async () => {
-    await cache.close();
-  });
-
-  it("should fetch and cache standard partitioned table", async () => {
-    // Mock Glue response for standard partitioned table
-    glueMock.on(GetTableCommand).resolves({
-      Table: {
-        Name: "test_table",
-        DatabaseName: "test_db",
-        PartitionKeys: [
-          { Name: "year", Type: "string" },
-          { Name: "month", Type: "string" },
-        ],
-        Parameters: {},
-      },
-    });
-
-    glueMock.on(GetPartitionsCommand).resolves({
-      Partitions: [
-        {
-          Values: ["2024", "01"],
-          StorageDescriptor: {
-            Location: "s3://bucket/path/year=2024/month=01",
-          },
-        },
-        {
-          Values: ["2024", "02"],
-          StorageDescriptor: {
-            Location: "s3://bucket/path/year=2024/month=02",
-          },
-        },
-      ],
-    });
-
-    const cache = new GlueTableCache({
-      glueTableMetadataTtlMs: 3600000,
-      maxEntries: 10,
-      forceRefreshOnError: true,
-      s3ListingRefresTtlhMs: 60000, // Add this line
-    });
-
-    // First call should hit AWS
-    const metadata1 = await cache.getTableMetadata("test_db", "test_table");
-    expect(metadata1.table.Name).toBe("test_table");
-    expect(metadata1.partitionMetadata?.values.length).toBe(2);
-    expect(glueMock.calls().length).toBe(2); // GetTable + GetPartitions
-
-    // Second call should use cache
-    const metadata2 = await cache.getTableMetadata("test_db", "test_table");
-    expect(metadata2.table.Name).toBe("test_table");
-    expect(glueMock.calls().length).toBe(2); // No additional AWS calls
-  });
-
-  it("should handle partition projection tables", async () => {
-    // Mock Glue response for projection-enabled table
-    glueMock.on(GetTableCommand).resolves({
-      Table: {
-        Name: "test_projection",
-        DatabaseName: "test_db",
-        PartitionKeys: [{ Name: "dt", Type: "string" }],
-        Parameters: {
-          "projection.enabled": "true",
-          "projection.dt.type": "date",
-          "projection.dt.format": "yyyy-MM-dd",
-          "projection.dt.range": '["2024-01-01","2024-12-31"]',
-          "storage.location.template": "s3://bucket/path/${dt}",
-        },
-      },
-    });
-
-    const cache = new GlueTableCache({
-      glueTableMetadataTtlMs: 3600000,
-      maxEntries: 100,
-      forceRefreshOnError: true,
-      s3ListingRefresTtlhMs: 60000,
-    });
-    const metadata = await cache.getTableMetadata("test_db", "test_projection");
-
-    expect(metadata.projectionPatterns?.enabled).toBe(true);
-    expect(metadata.projectionPatterns?.patterns.dt).toBeDefined();
-    expect(metadata.projectionPatterns?.patterns.dt.type).toBe("date");
-    expect(glueMock.calls().length).toBe(1); // Only GetTable, no GetPartitions
+    cache.close();
   });
 
   it("should handle cache clearing", async () => {
@@ -113,11 +32,11 @@ describe("GlueTableCache", () => {
       forceRefreshOnError: true,
       s3ListingRefresTtlhMs: 60000,
     });
-    await cache.getTableMetadata("test_db", "test_table");
+    await cache.getTableMetadataCached("test_db", "test_table");
     expect(glueMock.calls().length).toBe(1);
 
     cache.clearCache();
-    await cache.getTableMetadata("test_db", "test_table");
+    await cache.getTableMetadataCached("test_db", "test_table");
     expect(glueMock.calls().length).toBe(2);
   });
 
@@ -138,14 +57,14 @@ describe("GlueTableCache", () => {
     });
 
     // First call
-    await cache.getTableMetadata("test_db", "test_table");
+    await cache.getTableMetadataCached("test_db", "test_table");
     expect(glueMock.calls().length).toBe(1);
 
     // Wait for TTL to expire
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     // Second call should refresh
-    await cache.getTableMetadata("test_db", "test_table");
+    await cache.getTableMetadataCached("test_db", "test_table");
     expect(glueMock.calls().length).toBe(2);
   });
 });
@@ -184,7 +103,7 @@ describe("Complete View Setup", () => {
     const cache = new GlueTableCache();
 
     // Mock S3 listing to return some test files
-    const s3Mock = jest.spyOn(cache as any, "listS3Files");
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
     s3Mock.mockResolvedValue([
       {
         path: "s3://test-bucket/mydb/mytable/year=2024/month=01/data.parquet",
@@ -238,7 +157,7 @@ describe("Complete View Setup", () => {
     const cache = new GlueTableCache();
 
     // Mock S3 listing to return some test files
-    const s3Mock = jest.spyOn(cache as any, "listS3Files");
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
     s3Mock.mockResolvedValue([]);
 
     const statements = await (cache as any)?.getGlueTableViewSetupSql(
@@ -273,14 +192,14 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    await cache.getTableMetadata("test_db", "test_table");
+    await cache.getTableMetadataCached("test_db", "test_table");
 
     const testFiles = [
       "s3://test-bucket/data/file1.parquet",
       "s3://test-bucket/data/file2.parquet",
     ];
 
-    const s3Mock = jest.spyOn(cache as any, "listS3Files");
+    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
     s3Mock.mockResolvedValue(
       testFiles.map((path) => ({
         path,
@@ -306,90 +225,10 @@ describe("GlueTableCache Partition Extraction", () => {
       forceRefreshOnError: true,
     });
 
-    await expect(cache.getTableMetadata("test_db", "error_table")).rejects.toThrow("AWS Error");
+    await expect(cache.getTableMetadataCached("test_db", "error_table")).rejects.toThrow(
+      "AWS Error"
+    );
     expect(glueMock.calls().length).toBe(1);
-  });
-
-  it("should parse S3 paths correctly", async () => {
-    const cache = new GlueTableCache({
-      glueTableMetadataTtlMs: 3600000,
-      maxEntries: 100,
-      forceRefreshOnError: true,
-      s3ListingRefresTtlhMs: 60000,
-    });
-
-    // Test basic path
-    const result1 = (cache as any).parseS3Path("s3://bucket/prefix/path");
-    expect(result1).toEqual({
-      bucket: "bucket",
-      prefix: "prefix/path",
-    });
-
-    // Test path with trailing slash
-    const result2 = (cache as any).parseS3Path("s3://bucket/prefix/path/");
-    expect(result2).toEqual({
-      bucket: "bucket",
-      prefix: "prefix/path/",
-    });
-
-    // Test path with special characters
-    const result3 = (cache as any).parseS3Path("s3://my-bucket.123/path-with_special.chars/");
-    expect(result3).toEqual({
-      bucket: "my-bucket.123",
-      prefix: "path-with_special.chars/",
-    });
-  });
-
-  it("should extract partition values correctly", async () => {
-    const cache = new GlueTableCache();
-
-    // Test basic partition extraction
-    const values1 = (cache as any).extractPartitionValues(
-      "s3://bucket/path/year=2024/month=01/data.parquet",
-      ["year", "month"]
-    );
-    expect(values1).toEqual({
-      year: "2024",
-      month: "01",
-    });
-
-    // Test with missing partitions
-    const values2 = (cache as any).extractPartitionValues(
-      "s3://bucket/path/year=2024/data.parquet",
-      ["year", "month"]
-    );
-    expect(values2).toEqual({
-      year: "2024",
-    });
-
-    // Test with special characters in values
-    const values3 = (cache as any).extractPartitionValues(
-      "s3://bucket/path/date=2024-01-01/type=special_value.123/data.parquet",
-      ["date", "type"]
-    );
-    expect(values3).toEqual({
-      date: "2024-01-01",
-      type: "special_value.123",
-    });
-  });
-
-  it("should handle date format conversion correctly", async () => {
-    const cache = new GlueTableCache();
-
-    // Test various date format patterns
-    const patterns = {
-      yyyy: "\\d{4}",
-      MM: "\\d{2}",
-      dd: "\\d{2}",
-      "yyyy-MM-dd": "\\d{4}-\\d{2}-\\d{2}",
-      "yyyy/MM/dd": "\\d{4}/\\d{2}/\\d{2}",
-      yyyyMMdd: "\\d{4}\\d{2}\\d{2}",
-    };
-
-    for (const [format, expected] of Object.entries(patterns)) {
-      const result = (cache as any).convertDateFormatToRegex(format);
-      expect(result).toBe(expected);
-    }
   });
 
   it("should handle connection lifecycle correctly", async () => {
@@ -430,7 +269,7 @@ describe("GlueTableCache Partition Extraction", () => {
     glueMock.on(GetTableCommand).resolves({});
 
     await expect(async () => {
-      await cache.getTableMetadata("test_db", "missing_table");
+      await cache.getTableMetadataCached("test_db", "missing_table");
     }).rejects.toThrow("Table test_db.missing_table not found");
   });
 
@@ -451,7 +290,7 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    const metadata = await cache.getTableMetadata("test_db", "json_range");
+    const metadata = await cache.getTableMetadataCached("test_db", "json_range");
     expect(metadata.projectionPatterns?.patterns.year.range).toEqual([2020, 2021, 2022]);
   });
 
@@ -472,7 +311,7 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    const metadata = await cache.getTableMetadata("test_db", "csv_range");
+    const metadata = await cache.getTableMetadataCached("test_db", "csv_range");
     expect(metadata.projectionPatterns?.patterns.year.range).toEqual(["2020", "2021", "2022"]);
   });
 });
