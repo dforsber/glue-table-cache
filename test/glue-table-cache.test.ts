@@ -79,7 +79,7 @@ describe("GlueTableCache", () => {
       },
     });
 
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([]);
 
     // Invalid SQL should throw
@@ -99,7 +99,7 @@ describe("GlueTableCache", () => {
       },
     });
 
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([{ path: "s3://test-bucket/data/file1.parquet" }]);
 
     const query = `
@@ -150,7 +150,7 @@ describe("Complete View Setup", () => {
     const cache = new GlueTableCache();
 
     // Mock S3 listing to return some test files
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([
       {
         path: "s3://test-bucket/mydb/mytable/year=2024/month=01/data.parquet",
@@ -204,7 +204,7 @@ describe("Complete View Setup", () => {
     const cache = new GlueTableCache();
 
     // Mock S3 listing to return some test files
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([]);
 
     const statements = await (cache as any)?.getGlueTableViewSetupSql(
@@ -246,7 +246,7 @@ describe("GlueTableCache Partition Extraction", () => {
       "s3://test-bucket/data/file2.parquet",
     ];
 
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue(
       testFiles.map((path) => ({
         path,
@@ -335,7 +335,7 @@ describe("GlueTableCache Partition Extraction", () => {
       },
     });
 
-    const s3Mock = jest.spyOn(cache as any, "listS3FilesCached");
+    const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([{ path: "s3://test-bucket/data/file1.parquet" }]);
 
     const statements = await (cache as any).getGlueTableViewSetupSql(

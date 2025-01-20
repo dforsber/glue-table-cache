@@ -72,31 +72,28 @@ export class GlueTableCache {
     });
   }
 
+  // because constructor can't be async and we don't want the clients to worry about this
   private async connect(): Promise<DuckDBConnection> {
     if (!this.db) this.db = await (await DuckDBInstance.create(":memory:")).connect();
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     return this.db;
   }
 
-  clearCache(): void {
+  public clearCache(): void {
     this.tableCache.clear();
     this.s3ListingCache.clear();
   }
 
-  close(): void {
+  public close(): void {
     this.db?.close();
     this.db = undefined;
     this.sqlTransformer = undefined;
   }
 
-  // tests use this
-  private async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
-    if (!this.db) await this.connect();
-    if (!this.db) throw new Error("DB not connected");
-    return this.db.runAndReadAll(query);
-  }
-
-  async getTableMetadataCached(database: string, tableName: string): Promise<CachedTableMetadata> {
+  public async getTableMetadataCached(
+    database: string,
+    tableName: string
+  ): Promise<CachedTableMetadata> {
     const key = `${database}_${tableName}`;
     log("Getting table metadata for %s", key);
     const cached = this.tableCache.get(key);
@@ -133,26 +130,7 @@ export class GlueTableCache {
     }
   }
 
-  private async listS3FilesCached(s3Path: string, partitionKeys: string[]): Promise<S3FileInfo[]> {
-    const cacheKey = `${s3Path}:${partitionKeys.join(",")}`;
-    const cached = this.s3ListingCache.get(cacheKey);
-
-    if (cached) {
-      logAws("Using cached S3 listing for %s", s3Path);
-      return cached.data;
-    }
-
-    logAws("Listing S3 files for %s", s3Path);
-    const files: S3FileInfo[] = await listS3Objects(this.s3Client, s3Path, partitionKeys);
-
-    // Cache the results
-    const now = Date.now();
-    this.s3ListingCache.set(cacheKey, { timestamp: now, data: files });
-
-    return files;
-  }
-
-  async createGlueTableFilesVarSql(
+  public async createGlueTableFilesVarSql(
     database: string,
     tableName: string,
     filters?: string[]
@@ -177,7 +155,7 @@ export class GlueTableCache {
     return `SET VARIABLE ${safeVarName} = ( SELECT list(path) FROM (${query}));`;
   }
 
-  async convertGlueTableQuery(query: string): Promise<string> {
+  public async convertGlueTableQuery(query: string): Promise<string> {
     if (!this.db) await this.connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
@@ -188,7 +166,7 @@ export class GlueTableCache {
     return setupSql.join("") + transformedQuery;
   }
 
-  private async getGlueTableViewSetupSql(query: string): Promise<string[]> {
+  public async getGlueTableViewSetupSql(query: string): Promise<string[]> {
     if (!this.db) await this.connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
@@ -212,7 +190,7 @@ export class GlueTableCache {
         }
 
         let partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name!);
-        const files = await this.listS3FilesCached(baseLocation, partitionKeys);
+        const files = await this.__listS3FilesCached(baseLocation, partitionKeys);
 
         // 1. Create base table for file paths
         statements.push(
@@ -269,5 +247,34 @@ export class GlueTableCache {
     const trimmed = statements.map((stmt) => stmt.trim());
     log(trimmed);
     return trimmed;
+  }
+
+  private async __listS3FilesCached(
+    s3Path: string,
+    partitionKeys: string[]
+  ): Promise<S3FileInfo[]> {
+    const cacheKey = `${s3Path}:${partitionKeys.join(",")}`;
+    const cached = this.s3ListingCache.get(cacheKey);
+
+    if (cached) {
+      logAws("Using cached S3 listing for %s", s3Path);
+      return cached.data;
+    }
+
+    logAws("Listing S3 files for %s", s3Path);
+    const files: S3FileInfo[] = await listS3Objects(this.s3Client, s3Path, partitionKeys);
+
+    // Cache the results
+    const now = Date.now();
+    this.s3ListingCache.set(cacheKey, { timestamp: now, data: files });
+
+    return files;
+  }
+
+  // tests use this
+  private async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
+    if (!this.db) await this.connect();
+    if (!this.db) throw new Error("DB not connected");
+    return this.db.runAndReadAll(query);
   }
 }
