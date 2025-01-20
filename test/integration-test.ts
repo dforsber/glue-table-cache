@@ -155,6 +155,33 @@ describe("GlueTableCache", () => {
     expect(complexRows[0]).toBeDefined();
   }, 30_000);
 
+  it("should verify Iceberg table S3 listing contains only data files", async () => {
+    const cache = new GlueTableCache();
+    const database = "default";
+    const tableName = "iceberg_table";
+
+    // Get the table metadata which includes the S3 location
+    const metadata = await cache.getTableMetadataCached(database, tableName);
+    expect(metadata.tableType).toBe(ETableType.ICEBERG);
+    expect(metadata.table.StorageDescriptor?.Location).toBeDefined();
+
+    // Get the SQL statements that set up the table
+    const query = `SELECT * FROM glue.${database}.${tableName}`;
+    const statements = await cache.getGlueTableViewSetupSql(query);
+
+    // Find the statement that creates the s3_files table
+    const s3FilesStmt = statements.find(stmt => 
+      stmt.includes(`CREATE OR REPLACE TABLE "${database}_${tableName}_s3_files"`)
+    );
+    expect(s3FilesStmt).toBeDefined();
+
+    // Verify no manifest or metadata files are included
+    expect(s3FilesStmt).not.toContain("manifest.json");
+    expect(s3FilesStmt).not.toContain("metadata.json");
+    expect(s3FilesStmt).toMatch(/\.parquet/); // Should contain parquet files
+
+  }, 30_000);
+
   it("should handle partition projection patterns", async () => {
     const cache = new GlueTableCache();
 
