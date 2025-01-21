@@ -447,10 +447,4 @@ export class GlueTableCache extends BaseTableCache {
     }
   }
 
-  // tests use this
-  private async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
-    if (!this.db) await this.__connect();
-    if (!this.db) throw new Error("DB not connected");
-    return this.db.runAndReadAll(query);
-  }
 }
