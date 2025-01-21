@@ -105,14 +105,14 @@ console.log(convertedQuery);
   );
 
   -- This is not query specific
-  SET VARIABLE mydatabase_mytable_gview_files = (
+  SET VARIABLE mydatabase_mytable_glue_files = (
     SELECT list(path) FROM "mydatabase.mytable_s3_listing"
   );
 
   -- There is a view as well, if you happen to check SHOW TABLES, 
   --  but it is query specific!
-  CREATE OR REPLACE VIEW GLUE__mydatabase_mytable AS 
-    SELECT * FROM parquet_scan(getvariable('default_mytable_gview_files'));
+  CREATE OR REPLACE VIEW glue__mydatabase_mytable AS 
+    SELECT * FROM parquet_scan(getvariable('default_mytable_glue_files'));
 
   WITH monthly_stats AS (
     SELECT year, month,

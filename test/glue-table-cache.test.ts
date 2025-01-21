@@ -27,7 +27,7 @@ describe("GlueTableCache", () => {
     });
 
     const cache = new GlueTableCache({
-      glueTableMetadataTtlMs: 3600000,
+      tableMetadataTtlMs: 3600000,
       maxEntries: 100,
       s3ListingRefresTtlhMs: 60000,
     });
@@ -49,7 +49,7 @@ describe("GlueTableCache", () => {
     });
 
     const cache = new GlueTableCache({
-      glueTableMetadataTtlMs: 100, // Short TTL for testing
+      tableMetadataTtlMs: 100, // Short TTL for testing
       maxEntries: 10,
       s3ListingRefresTtlhMs: 60000, // Add this line
     });
@@ -161,8 +161,8 @@ describe("Complete View Setup", () => {
     expect(statements[1]).toContain('CREATE OR REPLACE TABLE "mydb_mytable_s3_listing"');
     expect(statements[2]).toContain("CREATE INDEX");
     expect(statements[4]).toContain("SET VARIABLE mydb_mytable_files");
-    expect(statements[5]).toContain("SET VARIABLE mydb_mytable_gview_files");
-    expect(statements[6]).toContain("CREATE OR REPLACE VIEW GLUE__mydb_mytable");
+    expect(statements[5]).toContain("SET VARIABLE mydb_mytable_glue_files");
+    expect(statements[6]).toContain("CREATE OR REPLACE VIEW glue__mydb_mytable");
   });
 
   it("should generate complete view setup SQL when there are not s3 files", async () => {
@@ -203,7 +203,7 @@ describe("Complete View Setup", () => {
 
     const statements = await (cache as any)?.getViewSetupSql("SELECT * FROM glue.mydb.mytable");
     expect(statements[6]).toContain(
-      "CREATE OR REPLACE VIEW GLUE__mydb_mytable AS SELECT NULL LIMIT 0;"
+      "CREATE OR REPLACE VIEW glue__mydb_mytable AS SELECT NULL LIMIT 0;"
     );
   });
 });
@@ -273,22 +273,18 @@ describe("GlueTableCache Partition Extraction", () => {
 
     // Test initial state
     expect((cache as any).db).toBeUndefined();
-    expect((cache as any).sqlTransformer).toBeUndefined();
 
     // Test connection
     await (cache as any).__connect();
     expect((cache as any).db).toBeDefined();
-    expect((cache as any).sqlTransformer).toBeDefined();
 
     // Test close
     cache.close();
     expect((cache as any).db).toBeUndefined();
-    expect((cache as any).sqlTransformer).toBeUndefined();
 
     // Test reconnection after close
     await (cache as any).__connect();
     expect((cache as any).db).toBeDefined();
-    expect((cache as any).sqlTransformer).toBeDefined();
   });
 
   it("should handle errors in runAndReadAll", async () => {

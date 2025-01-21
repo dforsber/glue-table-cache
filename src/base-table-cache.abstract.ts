@@ -1,24 +1,26 @@
 import { DuckDBInstance, DuckDBConnection } from "@duckdb/node-api";
 import { DuckDBResultReader } from "@duckdb/node-api/lib/DuckDBResultReader.js";
-import { S3Client } from "@aws-sdk/client-s3";
-import { LRUCache } from "lru-cache";
-import debug from "debug";
 import { S3FileInfo, CacheEntry, AbsLRUCache } from "./types.js";
 import { listS3Objects, mapS3PathsToInfo } from "./util/s3.js";
 import { getIcebergS3FilesStmts } from "./util/iceberg.js";
-import { Mutex } from "async-mutex";
-import retry from "async-retry";
 import { SqlTransformer } from "./sql-transformer.class.js";
+import { S3Client } from "@aws-sdk/client-s3";
+import { LRUCache } from "lru-cache";
+import { Mutex } from "async-mutex";
+import debug from "debug";
+import retry from "async-retry";
 
 const log = debug("base-table-cache");
 const logAws = debug("base-table-cache:aws");
 
 export interface BaseTableCacheConfig {
-  region: string;
-  maxEntries: number;
-  s3ListingRefresTtlhMs: number;
+  region?: string;
+  maxEntries?: number;
+  s3ListingRefresTtlhMs?: number;
+  tableMetadataTtlMs?: number;
   s3ListingCache?: LRUCache<string, CacheEntry<S3FileInfo[]>>;
   proxyAddress?: string;
+  sqlTransformer?: SqlTransformer;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -29,7 +31,6 @@ export interface BaseTableCacheConfig {
 export abstract class BaseTableCache {
   protected db: DuckDBConnection | undefined;
   protected config: BaseTableCacheConfig;
-  protected sqlTransformer: SqlTransformer | undefined;
   protected s3ListingCache: LRUCache<string, CacheEntry<S3FileInfo[]>>;
   protected s3Client?: S3Client;
 
@@ -71,7 +72,6 @@ export abstract class BaseTableCache {
   public close(): void {
     this.db?.close();
     this.db = undefined;
-    this.sqlTransformer = undefined;
   }
 
   public clearCache(): void {
@@ -116,7 +116,6 @@ export abstract class BaseTableCache {
         `CREATE OR REPLACE SECRET s3SecretForIcebergWithProvider ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`
       );
     }
-    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     return this.db;
   }
 

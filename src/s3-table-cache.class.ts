@@ -1,16 +1,15 @@
 import { BaseTableCache, BaseTableCacheConfig } from "./base-table-cache.abstract.js";
-import { GlueClient } from "@aws-sdk/client-glue";
+import { SqlTransformer } from "./sql-transformer.class.js";
+import { getPartitionExtractor } from "./util/glue.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
-import { SqlTransformer } from "./sql-transformer.class.js";
-import { getGlueTableMetadata, getPartitionExtractor } from "./util/glue.js";
 import { type CachedTableMetadata, type CacheEntry, type S3FileInfo, ETableType } from "./types.js";
 import debug from "debug";
 import retry from "async-retry";
 
-const log = debug("glue-table-cache");
-const logAws = debug("glue-table-cache:aws");
-const GLUE_PREFIX = "glue";
+const log = debug("s3-table-cache");
+const logAws = debug("s3-table-cache:aws");
+const S3_PREFIX = "s3";
 
 const defaultConfig: Omit<BaseTableCacheConfig, "credentials" | "s3ListingCache"> = {
   region: "eu-west-1",
@@ -19,10 +18,9 @@ const defaultConfig: Omit<BaseTableCacheConfig, "credentials" | "s3ListingCache"
   s3ListingRefresTtlhMs: 3600000, // 1 hour
 };
 
-export class GlueTableCache extends BaseTableCache {
+export class S3TableCache extends BaseTableCache {
   protected s3Client: S3Client;
   private tableCache: LRUCache<string, CacheEntry<CachedTableMetadata>>;
-  private glueClient: GlueClient;
   private sqlTransformer: SqlTransformer | undefined;
 
   constructor(config?: BaseTableCacheConfig) {
@@ -37,7 +35,6 @@ export class GlueTableCache extends BaseTableCache {
       region: this.config.region,
       credentials: this.config.credentials,
     };
-    this.glueClient = new GlueClient(awsSdkParams);
     this.s3Client = new S3Client(awsSdkParams);
 
     // Initialize metadata cache
@@ -73,10 +70,7 @@ export class GlueTableCache extends BaseTableCache {
             log("Cache miss for %s, refreshing...", key);
             try {
               logAws("Fetching table metadata from AWS for %s.%s", database, tableName);
-              const metadata = await getGlueTableMetadata(this.glueClient, database, tableName);
-              const now = Date.now();
-              cached.timestamp = now;
-              cached.data = metadata;
+              // TODO: ...
               return cached.data;
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (error: any) {
@@ -119,35 +113,10 @@ export class GlueTableCache extends BaseTableCache {
     }
   }
 
-  private async createGlueTableFilesVarSql(
-    database: string,
-    tableName: string,
-    filters?: string[]
-  ): Promise<string> {
-    if (!this.db) await this.__connect();
-    if (!this.db) throw new Error("DB not connected");
-    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db, "glue");
-    if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
-    const tblName = `${database}_${tableName}`;
-
-    let query = `SELECT path FROM "${tblName}_s3_listing"`;
-    if (filters && filters.length > 0) {
-      query += ` WHERE ${filters.join(" AND ")}`;
-    }
-
-    // Create a list of paths as a string array
-    const safeVarName = this.sqlTransformer?.getTableFilesVarName(database, tableName);
-    if (this.config.proxyAddress) {
-      // For example: s3:// --> https://locahost:3203/
-      return `SET VARIABLE ${safeVarName} = ( SELECT list(replace(path, 's3://', '${this.config.proxyAddress}')) FROM (${query}));`;
-    }
-    return `SET VARIABLE ${safeVarName} = ( SELECT list(path) FROM (${query}));`;
-  }
-
   public async convertQuery(query: string): Promise<string> {
     if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
-    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db, GLUE_PREFIX);
+    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db, S3_PREFIX);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
 
     const setupSql = await this.getViewSetupSql(query);
@@ -158,7 +127,7 @@ export class GlueTableCache extends BaseTableCache {
   public async getViewSetupSql(query: string): Promise<string[]> {
     if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
-    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db, GLUE_PREFIX);
+    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db, S3_PREFIX);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
 
     // Generate all SQL statements needed
@@ -236,10 +205,6 @@ export class GlueTableCache extends BaseTableCache {
         }
         const queryVarName = this.sqlTransformer.getQueryFilesVarName(database, table);
         statements.push(`SET VARIABLE ${queryVarName} = (${variableQuery});`);
-
-        // 6. Unfiltered Glue Table VIEW
-        const glueTableViewSql = await this.createGlueTableFilesVarSql(database, table);
-        if (glueTableViewSql) statements.push(glueTableViewSql);
 
         const viewSqls = await this.sqlTransformer.getTableViewSql(query, files.length);
         statements.push(...viewSqls);
