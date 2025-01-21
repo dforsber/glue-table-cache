@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { SqlTransformer } from "../src/sql-transformer.js";
+import { SqlTransformer } from "../src/sql-transformer.class";
 import { JSONPath } from "jsonpath-plus";
 import fs from "fs/promises";
 import path from "node:path";

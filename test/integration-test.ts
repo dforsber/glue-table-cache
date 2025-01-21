@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { S3Client } from "@aws-sdk/client-s3";
-import { GlueTableCache, type S3FileInfo } from "../src/glue-table-cache";
+import { GlueTableCache, type S3FileInfo } from "../src/glue-table-cache.class";
 import { listS3Objects } from "../src/util/s3";
 import { ETableType } from "../src/types";
 import { fromIni } from "@aws-sdk/credential-providers";

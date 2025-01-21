@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { GetPartitionsCommand, GetTableCommand, GlueClient } from "@aws-sdk/client-glue";
-import { GlueTableCache } from "../src/glue-table-cache";
+import { GlueTableCache } from "../src/glue-table-cache.class";
 import { mockClient } from "aws-sdk-client-mock";
 
 const glueMock = mockClient(GlueClient);
