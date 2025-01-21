@@ -3,22 +3,22 @@ import { DuckDBResultReader } from "@duckdb/node-api/lib/DuckDBResultReader.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
 import debug from "debug";
-import { S3FileInfo, CacheEntry } from "./types.js";
+import { S3FileInfo, CacheEntry, AbsLRUCache } from "./types.js";
 import { listS3Objects, mapS3PathsToInfo } from "./util/s3.js";
 import { getIcebergS3FilesStmts } from "./util/iceberg.js";
 import { Mutex } from "async-mutex";
 import retry from "async-retry";
+import { SqlTransformer } from "./sql-transformer.class.js";
 
 const log = debug("base-table-cache");
 const logAws = debug("base-table-cache:aws");
 
-type AbsLRUCache = LRUCache<string, CacheEntry<S3FileInfo[]>>;
-
 export interface BaseTableCacheConfig {
+  region: string;
+  maxEntries: number;
+  s3ListingRefresTtlhMs: number;
+  s3ListingCache?: LRUCache<string, CacheEntry<S3FileInfo[]>>;
   proxyAddress?: string;
-  region?: string;
-  maxEntries?: number;
-  s3ListingRefresTtlhMs?: number;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -29,28 +29,30 @@ export interface BaseTableCacheConfig {
 export abstract class BaseTableCache {
   protected db: DuckDBConnection | undefined;
   protected config: BaseTableCacheConfig;
-  protected s3Client: S3Client;
+  protected sqlTransformer: SqlTransformer | undefined;
   protected s3ListingCache: LRUCache<string, CacheEntry<S3FileInfo[]>>;
+  protected s3Client?: S3Client;
 
   constructor(config: Partial<BaseTableCacheConfig> = {}) {
     this.config = {
       region: config.region || process.env.AWS_REGION || "eu-west-1",
       maxEntries: config.maxEntries || 100,
       s3ListingRefresTtlhMs: config.s3ListingRefresTtlhMs || 3600000,
-      ...config
+      ...config,
     };
-    
-    const awsSdkParams = {
-      region: this.config.region,
-      credentials: this.config.credentials,
-    };
-    this.s3Client = new S3Client(awsSdkParams);
 
-    // Initialize S3 listing cache
-    this.s3ListingCache = new LRUCache({
-      max: this.config.maxEntries,
-      ttl: this.config.s3ListingRefresTtlhMs,
-    });
+    this.s3ListingCache =
+      config.s3ListingCache ??
+      new LRUCache({
+        max: config.maxEntries || 100,
+        ttl: config.s3ListingRefresTtlhMs || 3600000,
+      });
+    if (this.config.credentials) {
+      this.s3Client = new S3Client({
+        region: this.config.region,
+        credentials: this.config.credentials,
+      });
+    }
 
     if (this.config.proxyAddress) {
       try {
@@ -66,6 +68,16 @@ export abstract class BaseTableCache {
     }
   }
 
+  public close(): void {
+    this.db?.close();
+    this.db = undefined;
+    this.sqlTransformer = undefined;
+  }
+
+  public clearCache(): void {
+    this.s3ListingCache.clear();
+  }
+
   public setCredentials(credentials: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -74,20 +86,38 @@ export abstract class BaseTableCache {
     log("Setting credentials -- accessKeyId:", credentials.accessKeyId);
     if (credentials.secretAccessKey.length <= 0) throw new Error("No secretAccessKey");
     this.config.credentials = credentials;
+    this.s3Client = new S3Client({
+      region: this.config.region,
+      credentials: this.config.credentials,
+    });
   }
+
+  public abstract convertQuery(query: string): Promise<string>;
+  public abstract getViewSetupSql(query: string): Promise<string[]>;
 
   protected async __connect(): Promise<DuckDBConnection> {
     if (!this.db) this.db = await (await DuckDBInstance.create(":memory:")).connect();
     if (!this.db) throw new Error("Could not create DuckDB instance");
-    await this.configureConnection();
+    if (this.config.credentials?.accessKeyId && this.config.credentials?.secretAccessKey) {
+      const { accessKeyId, secretAccessKey, sessionToken } = this.config.credentials;
+      log("Using configured credentials for DuckDB");
+      await this.__runAndReadAll(
+        `CREATE SECRET s3SecretForIcebergFromCreds (
+              TYPE S3,
+              KEY_ID '${accessKeyId}',
+              SECRET '${secretAccessKey}',
+              ${sessionToken ? `SESSION_TOKEN '${sessionToken}',` : ""}
+              REGION '${this.config.region}'
+          );`
+      );
+    } else {
+      log("Using default credentials chain provider for DuckDB");
+      await this.__runAndReadAll(
+        `CREATE OR REPLACE SECRET s3SecretForIcebergWithProvider ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`
+      );
+    }
+    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     return this.db;
-  }
-
-  protected abstract configureConnection(): Promise<void>;
-
-  public close(): void {
-    this.db?.close();
-    this.db = undefined;
   }
 
   protected async __runAndReadAll(query: string): Promise<DuckDBResultReader> {
@@ -95,10 +125,6 @@ export abstract class BaseTableCache {
     if (!this.db) throw new Error("DB not connected");
     return this.db.runAndReadAll(query);
   }
-
-  public abstract clearCache(): void;
-  public abstract convertGlueTableQuery(query: string): Promise<string>;
-  public abstract getGlueTableViewSetupSql(query: string): Promise<string[]>;
 
   protected getCacheKeyWithMutex<T>(cache: AbsLRUCache, key: string): CacheEntry<T> {
     let cached = cache.get(key);
@@ -183,6 +209,7 @@ export abstract class BaseTableCache {
     s3Path: string,
     partitionKeys: string[]
   ): Promise<S3FileInfo[] | undefined> {
+    if (!this.s3Client) throw new Error("No S3 client available");
     const key = `${s3Path}:${partitionKeys.join(",")}`;
     const cached = this.getCacheKeyWithMutex<S3FileInfo[]>(this.s3ListingCache, key);
     if (!cached) throw new Error("Could not initialise cache entry");
@@ -201,6 +228,7 @@ export abstract class BaseTableCache {
             }
             try {
               logAws("Listing S3 files for %s", s3Path);
+              if (!this.s3Client) throw new Error("No S3 client available");
               const files: S3FileInfo[] = await listS3Objects(this.s3Client, s3Path, partitionKeys);
               this.s3ListingCache.set(key, { ...cached, timestamp: Date.now(), data: files });
               return files;

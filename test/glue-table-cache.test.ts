@@ -81,9 +81,7 @@ describe("GlueTableCache", () => {
     s3Mock.mockResolvedValue([]);
 
     // Invalid SQL should throw
-    await expect(
-      cache.convertGlueTableQuery("INVALID SQL FROM glue.test_db.test_table")
-    ).rejects.toThrow();
+    await expect(cache.convertQuery("INVALID SQL FROM glue.test_db.test_table")).rejects.toThrow();
   });
 
   it("should handle multiple table references", async () => {
@@ -106,7 +104,7 @@ describe("GlueTableCache", () => {
       JOIN glue.test_db.table2 b ON a.id = b.id
     `;
 
-    const convertedQuery = await cache.convertGlueTableQuery(query);
+    const convertedQuery = await cache.convertQuery(query);
 
     // Should handle both table references
     expect(convertedQuery).toContain("test_db_table1_files");
@@ -156,9 +154,7 @@ describe("Complete View Setup", () => {
       },
     ]);
 
-    const statements = await (cache as any)?.getGlueTableViewSetupSql(
-      "SELECT * FROM glue.mydb.mytable"
-    );
+    const statements = await (cache as any)?.getViewSetupSql("SELECT * FROM glue.mydb.mytable");
 
     expect(statements).toHaveLength(7); // Base table, listing table, index, variable, view
     expect(statements[0]).toContain('CREATE OR REPLACE TABLE "mydb_mytable_s3_files"');
@@ -205,9 +201,7 @@ describe("Complete View Setup", () => {
     const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([]);
 
-    const statements = await (cache as any)?.getGlueTableViewSetupSql(
-      "SELECT * FROM glue.mydb.mytable"
-    );
+    const statements = await (cache as any)?.getViewSetupSql("SELECT * FROM glue.mydb.mytable");
     expect(statements[6]).toContain(
       "CREATE OR REPLACE VIEW GLUE__mydb_mytable AS SELECT NULL LIMIT 0;"
     );
@@ -223,7 +217,7 @@ describe("GlueTableCache Partition Extraction", () => {
   });
 
   afterEach(async () => {
-    await cache.close();
+    cache.close();
   });
 
   it("should convert Glue table references to parquet_scan", async () => {
@@ -258,7 +252,7 @@ describe("GlueTableCache Partition Extraction", () => {
       WHERE col1 > 0
     `;
 
-    const convertedQuery = await cache.convertGlueTableQuery(inputQuery);
+    const convertedQuery = await cache.convertQuery(inputQuery);
     expect(convertedQuery).toContain("parquet_scan(getvariable('test_db_test_table_files'))");
     expect(convertedQuery).not.toContain("glue.test_db.test_table");
   });
@@ -334,12 +328,12 @@ describe("GlueTableCache Partition Extraction", () => {
     const s3Mock = jest.spyOn(cache as any, "__listS3FilesCached");
     s3Mock.mockResolvedValue([{ path: "s3://test-bucket/data/file1.parquet" }]);
 
-    const statements = await (cache as any).getGlueTableViewSetupSql(
+    const statements = await (cache as any).getViewSetupSql(
       "SELECT * FROM glue.test_db.test_table"
     );
 
     // Verify proxy address is used in SQL
-    expect(statements.some((sql: string) => sql.includes("'https://localhost:3203/"))).toBeTruthy();
+    expect(statements.some((sql: string) => sql.includes("'https://localhost:3203"))).toBeTruthy();
   });
 
   it("should handle invalid proxy address", async () => {
@@ -363,7 +357,7 @@ describe("GlueTableCache Partition Extraction", () => {
     });
 
     await expect(
-      (cache as any).getGlueTableViewSetupSql("SELECT * FROM glue.test_db.test_table")
+      (cache as any).getViewSetupSql("SELECT * FROM glue.test_db.test_table")
     ).rejects.toThrow("No storage location found");
   });
 

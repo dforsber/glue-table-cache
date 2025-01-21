@@ -1,5 +1,10 @@
 import { Table } from "@aws-sdk/client-glue";
 import { Mutex } from "async-mutex";
+import { LRUCache } from "lru-cache";
+
+export type AbsLRUCache =
+  | LRUCache<string, CacheEntry<CachedTableMetadata>>
+  | LRUCache<string, CacheEntry<S3FileInfo[]>>;
 
 export enum ETableType {
   HIVE = "HIVE",

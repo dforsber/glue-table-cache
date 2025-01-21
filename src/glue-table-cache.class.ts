@@ -1,21 +1,11 @@
-import { BaseTableCache, BaseTableCacheConfig } from "./base-table-cache.js";
+import { BaseTableCache, BaseTableCacheConfig } from "./base-table-cache.abstract.js";
 import { GlueClient } from "@aws-sdk/client-glue";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
 import debug from "debug";
-import { SqlTransformer } from "./sql-transformer.js";
-import {
-  type CachedTableMetadata,
-  type CacheConfig,
-  type CacheEntry,
-  type S3FileInfo,
-  ETableType,
-} from "./types.js";
-import { DuckDBResultReader } from "@duckdb/node-api/lib/DuckDBResultReader.js";
-import { listS3Objects, mapS3PathsToInfo } from "./util/s3.js";
+import { SqlTransformer } from "./sql-transformer.class.js";
+import { type CachedTableMetadata, type CacheEntry, type S3FileInfo, ETableType } from "./types.js";
 import { getGlueTableMetadata, getPartitionExtractor } from "./util/glue.js";
-import { getIcebergS3FilesStmts } from "./util/iceberg.js";
-import { Mutex } from "async-mutex";
 import retry from "async-retry";
 
 export type { S3FileInfo };
@@ -24,43 +14,31 @@ const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");
 
 export interface GlueTableCacheConfig extends BaseTableCacheConfig {
-  region: string;
-  maxEntries: number;
   glueTableMetadataTtlMs: number;
-  s3ListingRefresTtlhMs: number;
 }
 
-const defaultConfig: Omit<GlueTableCacheConfig, "credentials"> = {
+const defaultConfig: Omit<GlueTableCacheConfig, "credentials" | "s3ListingCache"> = {
   region: "eu-west-1",
   maxEntries: 100,
   glueTableMetadataTtlMs: 3600000, // 1 hour
   s3ListingRefresTtlhMs: 3600000, // 1 hour
-  proxyAddress: undefined,
 };
 
-type AbsLRUCache =
-  | LRUCache<string, CacheEntry<CachedTableMetadata>>
-  | LRUCache<string, CacheEntry<S3FileInfo[]>>;
-
 export class GlueTableCache extends BaseTableCache {
+  protected s3Client: S3Client;
   private tableCache: LRUCache<string, CacheEntry<CachedTableMetadata>>;
-  private s3ListingCache: LRUCache<string, CacheEntry<S3FileInfo[]>>;
   private glueClient: GlueClient;
-  private s3Client: S3Client;
-  private sqlTransformer: SqlTransformer | undefined;
-  private config: GlueTableCacheConfig;
 
-  constructor(config: Partial<GlueTableCacheConfig> = defaultConfig) {
+  constructor(config?: Partial<GlueTableCacheConfig>) {
     const fullConfig = {
       ...defaultConfig,
       ...config,
       region: config?.region || process.env.AWS_REGION || defaultConfig.region || "eu-west-1",
     };
     super(fullConfig);
-    this.config = fullConfig;
-    log("Initialised GlueTableCache config:", JSON.stringify(config));
+    log("Initialised GlueTableCache config:", JSON.stringify(this.config));
     const awsSdkParams = {
-      region: config.region,
+      region: this.config.region,
       credentials: this.config.credentials,
     };
     this.glueClient = new GlueClient(awsSdkParams);
@@ -69,64 +47,13 @@ export class GlueTableCache extends BaseTableCache {
     // Initialize metadata cache
     this.tableCache = new LRUCache({
       max: this.config.maxEntries,
-      ttl: this.config.glueTableMetadataTtlMs,
+      ttl: config?.glueTableMetadataTtlMs ?? 3600000,
     });
-
-    // Initialize S3 listing cache
-    this.s3ListingCache = new LRUCache({
-      max: this.config.maxEntries,
-      ttl: this.config.s3ListingRefresTtlhMs,
-    });
-  }
-
-  protected async configureConnection(): Promise<void> {
-    if (!this.db) throw new Error("DB not connected");
-    
-    if (this.config.credentials?.accessKeyId && this.config.credentials?.secretAccessKey) {
-      const { accessKeyId, secretAccessKey, sessionToken } = this.config.credentials;
-      log("Using configured credentials for DuckDB");
-      await this.__runAndReadAll(
-        `CREATE SECRET s3SecretForIcebergFromCreds (
-            TYPE S3,
-            KEY_ID '${accessKeyId}',
-            SECRET '${secretAccessKey}',
-            ${sessionToken ? `SESSION_TOKEN '${sessionToken}',` : ""}
-            REGION '${this.config.region}'
-        );`
-      );
-    } else {
-      log("Using default credentials chain provider for DuckDB");
-      await this.__runAndReadAll(
-        `CREATE OR REPLACE SECRET s3SecretForIcebergWithProvider ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`
-      );
-    }
-    if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
   }
 
   public clearCache(): void {
     this.tableCache.clear();
-    this.s3ListingCache.clear();
-  }
-
-  public close(): void {
-    this.db?.close();
-    this.db = undefined;
-    this.sqlTransformer = undefined;
-  }
-
-  private getCacheKeyWithMutex<T>(cache: AbsLRUCache, key: string): CacheEntry<T> {
-    // NOTE: We don't need to use Mutex here as nodejs event loop is single threaded and this function is synchronous
-    let cached = cache.get(key);
-    if (!cached) {
-      cache.set(key, {
-        mutex: new Mutex(),
-        timestamp: Date.now(),
-        data: undefined,
-      });
-      cached = cache.get(key);
-    }
-    if (!cached) throw new Error("ummm");
-    return <CacheEntry<T>>cached;
+    return super.clearCache();
   }
 
   public async getTableMetadataCached(
@@ -196,7 +123,7 @@ export class GlueTableCache extends BaseTableCache {
     }
   }
 
-  public async createGlueTableFilesVarSql(
+  private async createGlueTableFilesVarSql(
     database: string,
     tableName: string,
     filters?: string[]
@@ -221,18 +148,18 @@ export class GlueTableCache extends BaseTableCache {
     return `SET VARIABLE ${safeVarName} = ( SELECT list(path) FROM (${query}));`;
   }
 
-  public async convertGlueTableQuery(query: string): Promise<string> {
+  public async convertQuery(query: string): Promise<string> {
     if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
     if (!this.sqlTransformer) throw new Error("SQL transformer not initialized");
 
-    const setupSql = await this.getGlueTableViewSetupSql(query);
+    const setupSql = await this.getViewSetupSql(query);
     const transformedQuery = await this.sqlTransformer.transformGlueTableQuery(query);
     return setupSql.join("") + transformedQuery;
   }
 
-  public async getGlueTableViewSetupSql(query: string): Promise<string[]> {
+  public async getViewSetupSql(query: string): Promise<string[]> {
     if (!this.db) await this.__connect();
     if (!this.db) throw new Error("DB not connected");
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
@@ -327,124 +254,4 @@ export class GlueTableCache extends BaseTableCache {
     log(trimmed);
     return trimmed;
   }
-
-  private async __listS3IcebergFilesCached(
-    s3Path: string,
-    partitionKeys: string[]
-  ): Promise<S3FileInfo[] | undefined> {
-    const key = `${s3Path}:${partitionKeys.join(",")}`;
-    const cached = this.getCacheKeyWithMutex<S3FileInfo[]>(this.s3ListingCache, key);
-    if (!cached) throw new Error("Could not initialise cache entry");
-    if (cached.error) delete cached.error; // reset errors, if any
-    if (cached.data) {
-      logAws("Using cached S3 (Iceberg) listing for %s", s3Path);
-      return cached.data;
-    } else {
-      return cached.mutex.runExclusive(async () =>
-        retry(
-          async (bail, attempt) => {
-            if (cached.data) return cached.data; // another concurrent call, filled up the cache already
-            if (cached.error) {
-              bail(cached.error); // queued requests should throw too.
-              return;
-            }
-            try {
-              // For Iceberg Table, fetch the latest version files
-              const sql = getIcebergS3FilesStmts(s3Path);
-              logAws(sql);
-              if (!this.db) await this.__connect();
-              if (!this.db) throw new Error("Could not create db connection");
-              const last = sql.pop();
-              if (!last) throw new Error("No SQL statements generated");
-              for await (const stmt of sql) {
-                log(stmt);
-                await this.db.runAndReadAll(stmt);
-              }
-              const res = (await this.db.runAndReadAll(last)).getRows();
-              const listing = mapS3PathsToInfo(res.flat() as string[], partitionKeys);
-
-              logAws("Listing Iceberg S3 files for %s", { s3Path, partitionKeys, listing });
-              this.s3ListingCache.set(key, { ...cached, timestamp: Date.now(), data: listing });
-              cached.error = undefined;
-              return listing;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } catch (error: any) {
-              cached.error = error;
-              log("__listS3IcebergFilesCached ERROR:", attempt, error);
-              if (
-                error?.$metadata?.httpStatusCode === 403 ||
-                error?.[0]?.$metadata?.httpStatusCode === 403 ||
-                error?.$metadata?.httpStatusCode === 400 ||
-                error?.[0]?.$metadata?.httpStatusCode === 400 ||
-                error?.message.includes("HTTP 40")
-              ) {
-                bail(error);
-                return;
-              }
-              throw error;
-            }
-          },
-          {
-            retries: 3,
-            minTimeout: 200,
-            maxTimeout: 500,
-            onRetry: (e: Error, a: number) => log("__listS3IcebergFilesCached -- retry:", a, e),
-          }
-        )
-      );
-    }
-  }
-
-  private async __listS3FilesCached(
-    s3Path: string,
-    partitionKeys: string[]
-  ): Promise<S3FileInfo[] | undefined> {
-    const key = `${s3Path}:${partitionKeys.join(",")}`;
-    const cached = this.getCacheKeyWithMutex<S3FileInfo[]>(this.s3ListingCache, key);
-    if (!cached) throw new Error("Could not initialise cache entry");
-    if (cached.error) delete cached.error; // reset errors, if any
-    if (cached.data) {
-      logAws("Using cached S3 listing for %s", s3Path);
-      return cached.data;
-    } else {
-      return cached.mutex.runExclusive(async () =>
-        retry(
-          async (bail, attempt) => {
-            if (cached.data) return cached.data; // another concurrent call, filled up the cache already
-            if (cached.error) {
-              bail(cached.error); // queued requests should throw too.
-              return;
-            }
-            try {
-              logAws("Listing S3 files for %s", s3Path);
-              const files: S3FileInfo[] = await listS3Objects(this.s3Client, s3Path, partitionKeys);
-              this.s3ListingCache.set(key, { ...cached, timestamp: Date.now(), data: files });
-              return files;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } catch (error: any) {
-              log("__listS3FilesCached ERROR:", attempt, error);
-              if (
-                error?.$metadata?.httpStatusCode === 403 ||
-                error?.[0]?.$metadata?.httpStatusCode === 403 ||
-                error?.$metadata?.httpStatusCode === 400 ||
-                error?.[0]?.$metadata?.httpStatusCode === 400 ||
-                error?.message.includes("HTTP 40")
-              ) {
-                bail(error);
-                return;
-              }
-              throw error;
-            }
-          },
-          {
-            retries: 3,
-            minTimeout: 200,
-            maxTimeout: 500,
-            onRetry: (e: Error, a: number) => log("__listS3FilesCached -- retry:", a, e),
-          }
-        )
-      );
-    }
-  }
-
 }

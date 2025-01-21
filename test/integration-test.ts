@@ -113,10 +113,10 @@ describe("GlueTableCache", () => {
     const cache = new GlueTableCache();
 
     // First get the table metadata and ensure S3 listing exists
-    await cache.createGlueTableFilesVarSql("default", "flights_parquet");
+    await (cache as any).createGlueTableFilesVarSql("default", "flights_parquet");
 
     const query = "SELECT * FROM glue.default.flights_parquet LIMIT 10;";
-    const convertedQuery = await cache.convertGlueTableQuery(query);
+    const convertedQuery = await cache.convertQuery(query);
 
     // Verify the SQL conversion
     expect(convertedQuery).toBe(
@@ -168,7 +168,7 @@ describe("GlueTableCache", () => {
       LIMIT 5;
     `;
 
-    const convertedComplexQuery = await cache.convertGlueTableQuery(complexQuery);
+    const convertedComplexQuery = await cache.convertQuery(complexQuery);
     expect(convertedComplexQuery).toContain(
       "parquet_scan(getvariable('default_flights_parquet_files'))"
     );
@@ -196,7 +196,7 @@ describe("GlueTableCache", () => {
     const secrets = `CREATE SECRET secretForDirectS3Access ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`;
     await (cache as any).__runAndReadAll(secrets);
     const query = `SELECT * FROM glue.${database}.${tableName}`;
-    const statements = await cache.getGlueTableViewSetupSql(query);
+    const statements = await cache.getViewSetupSql(query);
 
     // Find the statement that creates the s3_files table
     const s3FilesStmt = statements.find((stmt) =>

@@ -80,11 +80,11 @@ const cache = new GlueTableCache({
 // The query above gets converted to use parquet_scan, for each Glue Table reference.
 // The returned transformed query includes all SQL statements for creating S3 listing
 // table and partition pruned SQL VARIABLE that is then used in the parquet scan.
-const convertedQuery = await cache.convertGlueTableQuery(query);
+const convertedQuery = await cache.convertQuery(query);
 const results = await db.runAndReadAll(convertedQuery);
 
 // The query above gets converted to use parquet_scan:
-const convertedQuery = await cache.convertGlueTableQuery(query);
+const convertedQuery = await cache.convertQuery(query);
 console.log(convertedQuery);
 /* Output:
 
@@ -169,7 +169,7 @@ convertGlueTableQuery(query: string): Promise<string>
 - Converts Glue table references to DuckDB parquet_scan operations
 
 ```typescript
-getGlueTableViewSetupSql(query: string): Promise<string[]>
+getViewSetupSql(query: string): Promise<string[]>
 ```
 
 - Generates complete SQL setup for creating a DuckDB view over a Glue table
