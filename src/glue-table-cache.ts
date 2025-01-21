@@ -1,7 +1,7 @@
+import { BaseTableCache, BaseTableCacheConfig } from "./base-table-cache.js";
 import { GlueClient } from "@aws-sdk/client-glue";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
-import { DuckDBInstance, DuckDBConnection } from "@duckdb/node-api";
 import debug from "debug";
 import { SqlTransformer } from "./sql-transformer.js";
 import {
@@ -23,7 +23,14 @@ export type { S3FileInfo };
 const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");
 
-const defaultConfig: Omit<CacheConfig, "credentials"> = {
+export interface GlueTableCacheConfig extends BaseTableCacheConfig {
+  region: string;
+  maxEntries: number;
+  glueTableMetadataTtlMs: number;
+  s3ListingRefresTtlhMs: number;
+}
+
+const defaultConfig: Omit<GlueTableCacheConfig, "credentials"> = {
   region: "eu-west-1",
   maxEntries: 100,
   glueTableMetadataTtlMs: 3600000, // 1 hour
@@ -35,34 +42,22 @@ type AbsLRUCache =
   | LRUCache<string, CacheEntry<CachedTableMetadata>>
   | LRUCache<string, CacheEntry<S3FileInfo[]>>;
 
-export class GlueTableCache {
+export class GlueTableCache extends BaseTableCache {
   private tableCache: LRUCache<string, CacheEntry<CachedTableMetadata>>;
   private s3ListingCache: LRUCache<string, CacheEntry<S3FileInfo[]>>;
   private glueClient: GlueClient;
   private s3Client: S3Client;
-  private db: DuckDBConnection | undefined;
   private sqlTransformer: SqlTransformer | undefined;
-  private config: CacheConfig;
+  private config: GlueTableCacheConfig;
 
-  constructor(config: Partial<CacheConfig> = defaultConfig) {
-    log("GlueTableCache config:", JSON.stringify(config));
-    this.config = {
+  constructor(config: Partial<GlueTableCacheConfig> = defaultConfig) {
+    const fullConfig = {
       ...defaultConfig,
       ...config,
       region: config?.region || process.env.AWS_REGION || defaultConfig.region || "eu-west-1",
     };
-    if (this.config.proxyAddress) {
-      try {
-        new URL(this.config.proxyAddress);
-        if (!this.config.proxyAddress.endsWith("/")) {
-          this.config.proxyAddress = this.config.proxyAddress + "/";
-        }
-        log("Using proxyAddress:", this.config.proxyAddress);
-      } catch (err) {
-        console.error(err);
-        this.config.proxyAddress = undefined;
-      }
-    }
+    super(fullConfig);
+    this.config = fullConfig;
     log("Initialised GlueTableCache config:", JSON.stringify(config));
     const awsSdkParams = {
       region: config.region,
@@ -84,41 +79,28 @@ export class GlueTableCache {
     });
   }
 
-  public setCredentials(credentials: {
-    accessKeyId: string;
-    secretAccessKey: string;
-    sessionToken?: string;
-  }) {
-    log("Setting credentials -- accessKeyId:", credentials.accessKeyId);
-    if (credentials.secretAccessKey.length <= 0) throw new Error("No secretAccessKey");
-    this.config.credentials = credentials;
-  }
-
-  // because constructor can't be async and we don't want the clients to worry about this
-  private async __connect(): Promise<DuckDBConnection> {
-    if (!this.db) this.db = await (await DuckDBInstance.create(":memory:")).connect();
-    if (!this.db) throw new Error("Could not create DuckDB instance (neo)");
+  protected async configureConnection(): Promise<void> {
+    if (!this.db) throw new Error("DB not connected");
+    
     if (this.config.credentials?.accessKeyId && this.config.credentials?.secretAccessKey) {
       const { accessKeyId, secretAccessKey, sessionToken } = this.config.credentials;
-      log("Using configured credentials for DuckDB (neo)");
+      log("Using configured credentials for DuckDB");
       await this.__runAndReadAll(
-        // white space is ok...
         `CREATE SECRET s3SecretForIcebergFromCreds (
             TYPE S3,
             KEY_ID '${accessKeyId}',
             SECRET '${secretAccessKey}',
-            ${sessionToken ? `SESSION_TOKEN \'${sessionToken}\',` : ""}
+            ${sessionToken ? `SESSION_TOKEN '${sessionToken}',` : ""}
             REGION '${this.config.region}'
         );`
       );
     } else {
-      log("Using default credentials chain provider for DuckDB (neo)");
+      log("Using default credentials chain provider for DuckDB");
       await this.__runAndReadAll(
         `CREATE OR REPLACE SECRET s3SecretForIcebergWithProvider ( TYPE S3, PROVIDER CREDENTIAL_CHAIN );`
       );
     }
     if (!this.sqlTransformer) this.sqlTransformer = new SqlTransformer(this.db);
-    return this.db;
   }
 
   public clearCache(): void {
