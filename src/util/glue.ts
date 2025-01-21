@@ -5,7 +5,7 @@ import {
   GlueClient,
   Table,
 } from "@aws-sdk/client-glue";
-import { CachedTableMetadata, ETableType, ProjectionPattern } from "../types.js";
+import { CachedGlueTableMetadata, ETableType, ProjectionPattern } from "../types.js";
 import debug from "debug";
 
 const log = debug("glue-api");
@@ -22,7 +22,7 @@ export async function getGlueTableMetadata(
   gluecli: GlueClient,
   DatabaseName: string,
   Name: string
-): Promise<CachedTableMetadata> {
+): Promise<CachedGlueTableMetadata> {
   try {
     const tableRequest: GetTableRequest = { DatabaseName, Name };
     const tableResponse = await gluecli.send(new GetTableCommand(tableRequest));
@@ -32,7 +32,7 @@ export async function getGlueTableMetadata(
     //  table_type: ICEBERG
     //  metadata_location: 's3://athena-results-dforsber/iceberg_table/metadata/00000-f607b49b-1780-421e-bf2b-6b00cc16230e.metadata.json'
     const tableType = getTableType(table);
-    const metadata: CachedTableMetadata = { timestamp: Date.now(), table: table, tableType };
+    const metadata: CachedGlueTableMetadata = { timestamp: Date.now(), table: table, tableType };
 
     // Handle partition projection if enabled
     if (tableType === ETableType.GLUE_PROJECTED && table.Parameters) {
@@ -135,7 +135,7 @@ export async function loadPartitionMetadata(
 
 export async function getPartitionExtractor(
   key: string,
-  metadata: CachedTableMetadata
+  metadata: CachedGlueTableMetadata
 ): Promise<string> {
   // Check if this is a projection-enabled table
   if (metadata.projectionPatterns?.enabled) {

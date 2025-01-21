@@ -3,7 +3,13 @@ import { SqlTransformer } from "./sql-transformer.class.js";
 import { getPartitionExtractor } from "./util/glue.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
-import { type CachedTableMetadata, type CacheEntry, type S3FileInfo, ETableType } from "./types.js";
+import {
+  type CachedGlueTableMetadata,
+  type CacheEntry,
+  type S3FileInfo,
+  CachedS3TableMetadata,
+  ETableType,
+} from "./types.js";
 import debug from "debug";
 import retry from "async-retry";
 
@@ -20,7 +26,7 @@ const defaultConfig: Omit<BaseTableCacheConfig, "credentials" | "s3ListingCache"
 
 export class S3TableCache extends BaseTableCache {
   protected s3Client: S3Client;
-  private tableCache: LRUCache<string, CacheEntry<CachedTableMetadata>>;
+  private tableCache: LRUCache<string, CacheEntry<CachedS3TableMetadata>>;
   private sqlTransformer: SqlTransformer | undefined;
 
   constructor(config?: BaseTableCacheConfig) {
@@ -52,10 +58,10 @@ export class S3TableCache extends BaseTableCache {
   public async getTableMetadataCached(
     database: string,
     tableName: string
-  ): Promise<CachedTableMetadata | undefined> {
+  ): Promise<CachedGlueTableMetadata | undefined> {
     const key = `${database}_${tableName}`;
     log("Getting table metadata for %s", key);
-    const cached = this.getCacheKeyWithMutex<CachedTableMetadata>(this.tableCache, key);
+    const cached = this.getCacheKeyWithMutex<CachedGlueTableMetadata>(this.tableCache, key);
     if (cached.error) delete cached.error; // reset errors, if any
     if (!cached || !cached.mutex) throw new Error("Failed to init cache entry");
     if (!cached.data) {
