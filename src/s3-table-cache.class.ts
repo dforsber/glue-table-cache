@@ -149,22 +149,13 @@ export class S3TableCache extends BaseTableCache {
         const metadata = await this.getTableMetadataCached(database, table);
         if (!metadata) throw new Error("Metadata not found");
         const tblName = `${database}_${table}`;
-        const baseLocation = metadata.table.StorageDescriptor?.Location;
-        if (!baseLocation) {
-          throw new Error(`No storage location found for ${tblName}`);
-        }
+        // TODO: ..
 
         let partitionKeys = (metadata.table.PartitionKeys || []).map((k) => k.Name!);
         const files: S3FileInfo[] = [];
         switch (metadata.tableType) {
-          case ETableType.ICEBERG: {
-            const res = await this.__listS3IcebergFilesCached(baseLocation, partitionKeys);
-            if (res) files.push(...res);
-            break;
-          }
-          default: {
-            const res = await this.__listS3FilesCached(baseLocation, partitionKeys);
-            if (res) files.push(...res);
+          default:
+          case ETableType.S3_TABLE: {
             break;
           }
         }
