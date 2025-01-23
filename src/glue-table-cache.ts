@@ -16,7 +16,7 @@ import { getGlueTableMetadata, getPartitionExtractor } from "./util/glue.js";
 import { getIcebergS3FilesStmts } from "./util/iceberg.js";
 import { Mutex } from "async-mutex";
 import retry from "async-retry";
-import debug from "debug";
+import { debug } from "./util/debug.js";
 
 export type { S3FileInfo };
 

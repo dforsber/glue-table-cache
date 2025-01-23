@@ -2,7 +2,7 @@
 import { DuckDBConnection } from "@duckdb/node-api";
 import { TableReference } from "./types.js";
 import { JSONPath } from "jsonpath-plus";
-import debug from "debug";
+import { debug } from "./util/debug.js";
 
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");

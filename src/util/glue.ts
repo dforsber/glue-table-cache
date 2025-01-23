@@ -6,7 +6,7 @@ import {
   Table,
 } from "@aws-sdk/client-glue";
 import { CachedTableMetadata, ETableType, ProjectionPattern } from "../types.js";
-import debug from "debug";
+import { debug } from "./debug.js";
 
 const log = debug("glue-api");
 
