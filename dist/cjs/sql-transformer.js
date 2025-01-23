@@ -1,13 +1,10 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SqlTransformer = void 0;
 const jsonpath_plus_1 = require("jsonpath-plus");
-const debug_1 = __importDefault(require("debug"));
-const log = (0, debug_1.default)("glue-table-cache:sql");
-const logAst = (0, debug_1.default)("glue-table-cache:sql:ast");
+const debug_js_1 = require("./util/debug.js");
+const log = (0, debug_js_1.debug)("glue-table-cache:sql");
+const logAst = (0, debug_js_1.debug)("glue-table-cache:sql:ast");
 class SqlTransformer {
     db;
     constructor(db) {

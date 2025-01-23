@@ -9,7 +9,7 @@ import { getGlueTableMetadata, getPartitionExtractor } from "./util/glue.js";
 import { getIcebergS3FilesStmts } from "./util/iceberg.js";
 import { Mutex } from "async-mutex";
 import retry from "async-retry";
-import debug from "debug";
+import { debug } from "./util/debug.js";
 const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");
 const defaultConfig = {

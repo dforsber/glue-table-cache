@@ -15,9 +15,9 @@ const glue_js_1 = require("./util/glue.js");
 const iceberg_js_1 = require("./util/iceberg.js");
 const async_mutex_1 = require("async-mutex");
 const async_retry_1 = __importDefault(require("async-retry"));
-const debug_1 = __importDefault(require("debug"));
-const log = (0, debug_1.default)("glue-table-cache");
-const logAws = (0, debug_1.default)("glue-table-cache:aws");
+const debug_js_1 = require("./util/debug.js");
+const log = (0, debug_js_1.debug)("glue-table-cache");
+const logAws = (0, debug_js_1.debug)("glue-table-cache:aws");
 const defaultConfig = {
     region: "eu-west-1",
     maxEntries: 100,

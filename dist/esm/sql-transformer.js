@@ -1,5 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
-import debug from "debug";
+import { debug } from "./util/debug.js";
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");
 export class SqlTransformer {
