@@ -1,6 +1,6 @@
 import { GetPartitionsCommand, GetTableCommand, } from "@aws-sdk/client-glue";
 import { ETableType } from "../types.js";
-import debug from "debug";
+import { debug } from "./debug.js";
 const log = debug("glue-api");
 function getTableType(tbl) {
     const p = tbl.Parameters ?? {};

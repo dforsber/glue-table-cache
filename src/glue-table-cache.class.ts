@@ -10,8 +10,8 @@ import {
   type S3FileInfo,
   ETableType,
 } from "./types.js";
-import debug from "debug";
 import retry from "async-retry";
+import { debug } from "./util/debug.js";
 
 const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");

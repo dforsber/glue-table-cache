@@ -9,4 +9,5 @@ var ETableType;
     ETableType["DELTA"] = "DELTA";
     ETableType["GLUE_PROJECTED"] = "GLUE_PROJECTED";
     ETableType["UNPARTITIONED"] = "UNPARTITIONED";
+    ETableType["S3_TABLE"] = "S3_TABLE";
 })(ETableType || (exports.ETableType = ETableType = {}));

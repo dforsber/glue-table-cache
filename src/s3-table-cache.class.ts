@@ -10,8 +10,8 @@ import {
   CachedS3TableMetadata,
   ETableType,
 } from "./types.js";
-import debug from "debug";
 import retry from "async-retry";
+import { debug } from "./util/debug.js";
 
 const log = debug("s3-table-cache");
 const logAws = debug("s3-table-cache:aws");

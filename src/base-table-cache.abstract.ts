@@ -7,8 +7,8 @@ import { SqlTransformer } from "./sql-transformer.class.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
 import { Mutex } from "async-mutex";
-import debug from "debug";
 import retry from "async-retry";
+import { debug } from "./util/debug.js";
 
 const log = debug("base-table-cache");
 const logAws = debug("base-table-cache:aws");

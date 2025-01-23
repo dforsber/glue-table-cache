@@ -1,7 +1,4 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGlueTableMetadata = getGlueTableMetadata;
 exports.parseProjectionPatterns = parseProjectionPatterns;
@@ -10,8 +7,8 @@ exports.getPartitionExtractor = getPartitionExtractor;
 exports.convertDateFormatToRegex = convertDateFormatToRegex;
 const client_glue_1 = require("@aws-sdk/client-glue");
 const types_js_1 = require("../types.js");
-const debug_1 = __importDefault(require("debug"));
-const log = (0, debug_1.default)("glue-api");
+const debug_js_1 = require("./debug.js");
+const log = (0, debug_js_1.debug)("glue-api");
 function getTableType(tbl) {
     const p = tbl.Parameters ?? {};
     if (p.table_type === "ICEBERG")
