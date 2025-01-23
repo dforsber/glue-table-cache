@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBConnection } from "@duckdb/node-api";
 import { TableReference } from "./types.js";
-import debug from "debug";
 import { JSONPath } from "jsonpath-plus";
+import debug from "debug";
 
 const log = debug("glue-table-cache:sql");
 const logAst = debug("glue-table-cache:sql:ast");
