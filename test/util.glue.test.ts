@@ -7,7 +7,7 @@ import {
   parseProjectionPatterns,
 } from "../src/util/glue";
 import { mockClient } from "aws-sdk-client-mock";
-import { CachedTableMetadata, ETableType } from "../src/types";
+import { CachedGlueTableMetadata, ETableType } from "../src/types";
 
 const glueMock = mockClient(GlueClient);
 let glueCli: GlueClient;
@@ -187,7 +187,7 @@ describe("glue", () => {
 
   describe("getPartitionExtractor", () => {
     it("should handle date projection patterns", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -207,7 +207,7 @@ describe("glue", () => {
     });
 
     it("should handle integer projection patterns", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -227,7 +227,7 @@ describe("glue", () => {
     });
 
     it("should handle enum projection patterns", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -247,7 +247,7 @@ describe("glue", () => {
     });
 
     it("should throw error for injected projection patterns", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -267,7 +267,7 @@ describe("glue", () => {
     });
 
     it("should throw error for unknown projection type", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -287,7 +287,7 @@ describe("glue", () => {
     });
 
     it("should throw error for missing projection pattern", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,
@@ -303,7 +303,7 @@ describe("glue", () => {
     });
 
     it("should default to Hive-style partitioning when no projection", async () => {
-      const metadata: CachedTableMetadata = {
+      const metadata: CachedGlueTableMetadata = {
         timestamp: Date.now(),
         table: {} as any,
         tableType: ETableType.UNPARTITIONED,

@@ -5,7 +5,7 @@ const cache = new GlueTableCache();
 const query = `SELECT * FROM glue.default.flights_parquet WHERE year = '2016' AND month IN ('01', '02', '03') LIMIT 100;`;
 
 // Convert the query into DuckDB SQL using the parquet scan format.
-const duckQuery = await cache.convertGlueTableQuery(query);
+const duckQuery = await cache.convertQuery(query);
 
 // When executing, you need to have AWS S3 credentials set up:
 console.log(duckQuery);

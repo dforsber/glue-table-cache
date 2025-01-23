@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { SqlTransformer } from "../src/sql-transformer.js";
+import { SqlTransformer } from "../src/sql-transformer.class";
 import { JSONPath } from "jsonpath-plus";
-import fs from "fs/promises";
 import path from "node:path";
+import fs from "fs/promises";
 
 describe("SqlTransformer", () => {
   let db: DuckDBConnection;
@@ -11,7 +11,7 @@ describe("SqlTransformer", () => {
 
   beforeAll(async () => {
     db = await (await DuckDBInstance.create(":memory:")).connect();
-    transformer = new SqlTransformer(db);
+    transformer = new SqlTransformer(db, "glue");
   });
 
   afterAll(async () => {
@@ -51,7 +51,7 @@ describe("SqlTransformer", () => {
 
     it("should transform simple SELECT query", async () => {
       const input = "SELECT * FROM glue.mydb.mytable";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toBe("SELECT * FROM parquet_scan(getvariable('mydb_mytable_files'));");
     });
 
@@ -61,7 +61,7 @@ describe("SqlTransformer", () => {
         FROM glue.db1.table1 t1 
         JOIN glue.db2.table2 t2 ON t1.id = t2.id
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('db1_table1_files'))");
       expect(output).toContain("parquet_scan(getvariable('db2_table2_files'))");
     });
@@ -72,7 +72,7 @@ describe("SqlTransformer", () => {
         FROM glue.mydb.mytable g 
         JOIN regular_table r ON g.id = r.id
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
       expect(output).toContain("regular_table");
     });
@@ -87,7 +87,7 @@ describe("SqlTransformer", () => {
           WHERE col1 > 0
         ) t
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
       expect(output).toContain("WHERE (col1 > 0)");
     });
@@ -101,7 +101,7 @@ describe("SqlTransformer", () => {
         )
         SELECT * FROM cte
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
       expect(output).not.toContain("glue.mybdb_mytable");
     });
@@ -115,7 +115,7 @@ describe("SqlTransformer", () => {
         )
         SELECT * FROM cte1 JOIN cte2 ON cte1.col1 = cte2.col2
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('db1_table1_files'))");
       expect(output).toContain("parquet_scan(getvariable('db2_table2_files'))");
     });
@@ -124,25 +124,25 @@ describe("SqlTransformer", () => {
   describe("SQL Clause Preservation", () => {
     it("should preserve WHERE clauses", async () => {
       const input = "SELECT * FROM glue.mydb.mytable WHERE col1 > 0 AND col2 = 'value'";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("WHERE ((col1 > 0) AND (col2 = 'value'))");
     });
 
     it("should preserve GROUP BY clauses", async () => {
       const input = "SELECT col1, COUNT(*) FROM glue.mydb.mytable GROUP BY col1";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("GROUP BY col1");
     });
 
     it("should preserve ORDER BY clauses", async () => {
       const input = "SELECT * FROM glue.mydb.mytable ORDER BY col1 DESC, col2 ASC";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("ORDER BY col1 DESC, col2 ASC");
     });
 
     it("should preserve LIMIT clauses", async () => {
       const input = "SELECT * FROM glue.mydb.mytable LIMIT 10";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("LIMIT 10");
     });
   });
@@ -150,18 +150,16 @@ describe("SqlTransformer", () => {
   describe("Error Handling", () => {
     it("should handle invalid SQL gracefully", async () => {
       const input = "SELECT * FROMM glue.mydb.mytable"; // Note the typo in FROM
-      await expect(transformer.transformGlueTableQuery(input)).rejects.toThrow();
+      await expect(transformer.transformTableQuery(input)).rejects.toThrow();
     });
 
     it("should handle empty input", async () => {
-      await expect(transformer.transformGlueTableQuery("")).rejects.toThrow(/no statements/);
+      await expect(transformer.transformTableQuery("")).rejects.toThrow(/no statements/);
     });
 
     it("should handle null input", async () => {
       // @ts-expect-error testing null input
-      await expect(transformer.transformGlueTableQuery(null)).rejects.toThrow(
-        /Cannot read properties/
-      );
+      await expect(transformer.transformTableQuery(null)).rejects.toThrow(/Cannot read properties/);
     });
 
     it("should handle malformed AST", async () => {
@@ -170,14 +168,14 @@ describe("SqlTransformer", () => {
       };
       jest.spyOn(db, "runAndReadAll").mockResolvedValueOnce(mockResult as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow(
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow(
         /no statements array/
       );
     });
 
     it("should handle invalid table references", async () => {
       const input = "SELECT * FROM glue..mytable"; // Missing database name
-      await expect(transformer.transformGlueTableQuery(input)).rejects.toThrow();
+      await expect(transformer.transformTableQuery(input)).rejects.toThrow();
     });
   });
 
@@ -190,7 +188,7 @@ describe("SqlTransformer", () => {
         JOIN glue.mydb.othertable AS t2
         ON t1.id = t2.id
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("AS t1");
       expect(output).toContain("AS t2");
       expect(output).toContain("t1.col1");
@@ -210,13 +208,13 @@ describe("SqlTransformer", () => {
         )
         SELECT * FROM cte
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
     });
 
     it("should handle multiple schema qualifiers", async () => {
       const input = "SELECT * FROM glue.mydb.schema.mytable";
-      await expect(transformer.transformGlueTableQuery(input)).rejects.toThrow();
+      await expect(transformer.transformTableQuery(input)).rejects.toThrow();
     });
 
     it("should handle case-sensitive identifiers", async () => {
@@ -225,7 +223,7 @@ describe("SqlTransformer", () => {
         FROM "GLUE"."MYDB"."MYTABLE"
         WHERE "COLUMN" = 'value'
       `;
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       // DuckDB normalizes identifiers to uppercase when quoted
       expect(output).toContain("parquet_scan(getvariable('MYDB_MYTABLE_files'))");
       expect(output).toContain('"COLUMN"');
@@ -237,7 +235,7 @@ describe("SqlTransformer", () => {
       };
       jest.spyOn(db, "runAndReadAll").mockResolvedValueOnce(mockResult as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow(
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow(
         "Failed to serialize SQL query"
       );
     });
@@ -255,7 +253,7 @@ describe("SqlTransformer", () => {
         .mockResolvedValueOnce(mockSerialize as any)
         .mockResolvedValueOnce(mockDeserialize as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow(
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow(
         "Failed to deserialize SQL query"
       );
     });
@@ -470,7 +468,7 @@ describe("SqlTransformer", () => {
       };
       jest.spyOn(db, "runAndReadAll").mockResolvedValueOnce(mockResult as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow();
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow();
     });
 
     it("should handle missing node in AST statement", async () => {
@@ -479,7 +477,7 @@ describe("SqlTransformer", () => {
       };
       jest.spyOn(db, "runAndReadAll").mockResolvedValueOnce(mockResult as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow();
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow();
     });
 
     it("should handle invalid JSON in AST", async () => {
@@ -488,7 +486,7 @@ describe("SqlTransformer", () => {
       };
       jest.spyOn(db, "runAndReadAll").mockResolvedValueOnce(mockResult as any);
 
-      await expect(transformer.transformGlueTableQuery("SELECT * FROM table")).rejects.toThrow();
+      await expect(transformer.transformTableQuery("SELECT * FROM table")).rejects.toThrow();
     });
   });
 
@@ -503,7 +501,7 @@ describe("SqlTransformer", () => {
 
     it("should transform join query AST correctly", async () => {
       const { ast } = astFixtures.join_query;
-      const transformer = new SqlTransformer(db);
+      const transformer = new SqlTransformer(db, "glue");
 
       (transformer as any).transformNode(ast);
 
@@ -522,7 +520,7 @@ describe("SqlTransformer", () => {
 
     it("should transform subquery AST correctly", async () => {
       const { ast } = astFixtures.subquery;
-      const transformer = new SqlTransformer(db);
+      const transformer = new SqlTransformer(db, "glue");
 
       (transformer as any).transformNode(ast);
 
@@ -536,7 +534,7 @@ describe("SqlTransformer", () => {
 
     it("should transform complex CTE AST correctly", async () => {
       const { ast } = astFixtures.complex_cte;
-      const transformer = new SqlTransformer(db);
+      const transformer = new SqlTransformer(db, "glue");
 
       (transformer as any).transformNode(ast);
 
@@ -626,13 +624,13 @@ describe("SqlTransformer", () => {
   describe("AST Manipulation", () => {
     it("should handle aliased table references", async () => {
       const input = "SELECT t.* FROM glue.mydb.mytable t";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toBe("SELECT t.* FROM parquet_scan(getvariable('mydb_mytable_files')) AS t;");
     });
 
     it("should handle qualified column references", async () => {
       const input = "SELECT glue.mydb.mytable.col1 FROM glue.mydb.mytable";
-      const output = await transformer.transformGlueTableQuery(input);
+      const output = await transformer.transformTableQuery(input);
       expect(output).toContain("parquet_scan(getvariable('mydb_mytable_files'))");
     });
   });
@@ -769,33 +767,33 @@ describe("SqlTransformer", () => {
 
   describe("View Creation SQL", () => {
     it("should generate view creation SQL", async () => {
-      const viewSql = await transformer.getGlueTableViewSql(
+      const viewSql = await transformer.getTableViewSql(
         "SELECT col1, col2 FROM glue.mydb.mytable WHERE id > 100"
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW GLUE__mydb_mytable AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_gview_files'));"
+        "CREATE OR REPLACE VIEW glue__mydb_mytable AS SELECT * FROM parquet_scan(getvariable('mydb_mytable_glue_files'));"
       );
     });
 
     it("should generate view creation SQL with - on the db name", async () => {
-      const viewSql = await transformer.getGlueTableViewSql(
+      const viewSql = await transformer.getTableViewSql(
         'SELECT col1, col2 FROM "glue"."mydb-with-dash"."mytable" WHERE id > 100'
       );
       expect(viewSql[0]).toBe(
-        "CREATE OR REPLACE VIEW GLUE__mydbwithdash_mytable AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_gview_files'));"
+        "CREATE OR REPLACE VIEW glue__mydbwithdash_mytable AS SELECT * FROM parquet_scan(getvariable('mydbwithdash_mytable_glue_files'));"
       );
     });
 
     it("should handle complex queries in view creation", async () => {
-      const viewSql = await transformer.getGlueTableViewSql(
+      const viewSql = await transformer.getTableViewSql(
         `SELECT t1.col1, t2.col2 
          FROM glue.db1.table1 t1 
          JOIN glue.db2.table2 t2 ON t1.id = t2.id`
       );
-      expect(viewSql[0]).toContain("CREATE OR REPLACE VIEW GLUE__db1_table1 AS");
-      expect(viewSql[0]).toContain("parquet_scan(getvariable('db1_table1_gview_files'))");
-      expect(viewSql[1]).toContain("CREATE OR REPLACE VIEW GLUE__db2_table2 AS");
-      expect(viewSql[1]).toContain("parquet_scan(getvariable('db2_table2_gview_files'))");
+      expect(viewSql[0]).toContain("CREATE OR REPLACE VIEW glue__db1_table1 AS");
+      expect(viewSql[0]).toContain("parquet_scan(getvariable('db1_table1_glue_files'))");
+      expect(viewSql[1]).toContain("CREATE OR REPLACE VIEW glue__db2_table2 AS");
+      expect(viewSql[1]).toContain("parquet_scan(getvariable('db2_table2_glue_files'))");
     });
   });
 });

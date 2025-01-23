@@ -1,2 +1,2 @@
-export { GlueTableCache } from "./glue-table-cache.js";
-export type { CacheConfig, CachedTableMetadata, ProjectionPattern, S3FileInfo } from "./types.js";
+export { GlueTableCache } from "./glue-table-cache.class.js";
+export type { CacheConfig, CachedGlueTableMetadata, ProjectionPattern, S3FileInfo, } from "./types.js";

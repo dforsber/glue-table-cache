@@ -18,9 +18,10 @@ SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 
 ## Features
 
-- 🚀 Convert SQL query reading Glue Table to direct S3 read query with partition pruning
+- 🚀 Convert SQL query reading Glue/S3 Table to direct S3 read query with partition pruning
   - [x] Parquet Glue Tables
   - [ ] JSON/CSV Glue Tables
+  - [ ] S3 Tables
 - 🔍 SQL-based partition filtering using DuckDB
   - 📊 Support for Hive-style partitioned tables
   - 🎯 Support for AWS Glue partition projection patterns tables:
@@ -31,7 +32,7 @@ SELECT * FROM parquet_scan(getvariable('glue_db_tbl_files'));
 - 🚀 LRU (Least Recently Used) caching mechanism for Glue metadata and S3 listings
   - ⏰ Configurable TTL for cache entries
   - 🔄 Automatic cache invalidation and refresh
-- [x] Allow setting local HTTP proxy block cache for accessing S3 files, so that the s3 URLs are converted to e.g. `http://localhost:3203/BUCKET/PREFIX`
+- 🔄 Allow setting local HTTP proxy block cache for accessing S3 files, so that the s3 URLs are converted to e.g. `http://localhost:3203/BUCKET/PREFIX`
 - 🔒 Type-safe TypeScript implementation
 - NOTE: DuckDB `json_serialize_sql()` does not support e.g. COPY statements
 
@@ -80,11 +81,11 @@ const cache = new GlueTableCache({
 // The query above gets converted to use parquet_scan, for each Glue Table reference.
 // The returned transformed query includes all SQL statements for creating S3 listing
 // table and partition pruned SQL VARIABLE that is then used in the parquet scan.
-const convertedQuery = await cache.convertGlueTableQuery(query);
+const convertedQuery = await cache.convertQuery(query);
 const results = await db.runAndReadAll(convertedQuery);
 
 // The query above gets converted to use parquet_scan:
-const convertedQuery = await cache.convertGlueTableQuery(query);
+const convertedQuery = await cache.convertQuery(query);
 console.log(convertedQuery);
 /* Output:
 
@@ -105,14 +106,14 @@ console.log(convertedQuery);
   );
 
   -- This is not query specific
-  SET VARIABLE mydatabase_mytable_gview_files = (
+  SET VARIABLE mydatabase_mytable_glue_files = (
     SELECT list(path) FROM "mydatabase.mytable_s3_listing"
   );
 
   -- There is a view as well, if you happen to check SHOW TABLES, 
   --  but it is query specific!
-  CREATE OR REPLACE VIEW GLUE__mydatabase_mytable AS 
-    SELECT * FROM parquet_scan(getvariable('default_mytable_gview_files'));
+  CREATE OR REPLACE VIEW glue__mydatabase_mytable AS 
+    SELECT * FROM parquet_scan(getvariable('default_mytable_glue_files'));
 
   WITH monthly_stats AS (
     SELECT year, month,
@@ -163,16 +164,16 @@ constructor(region: string, config?: CacheConfig)
 #### Map SQL
 
 ```typescript
-convertGlueTableQuery(query: string): Promise<string>
+convertTableQuery(query: string): Promise<string>
 ```
 
-- Converts Glue table references to DuckDB parquet_scan operations
+- Converts table references to DuckDB e.g. parquet_scan operations
 
 ```typescript
-getGlueTableViewSetupSql(query: string): Promise<string[]>
+getViewSetupSql(query: string): Promise<string[]>
 ```
 
-- Generates complete SQL setup for creating a DuckDB view over a Glue table
+- Generates complete SQL setup for creating a DuckDB view over the table
 - Returns array of SQL statements that:
   1. Create table for S3 file paths
   2. Create table for partition listings with extractors
@@ -180,13 +181,19 @@ getGlueTableViewSetupSql(query: string): Promise<string[]>
   4. Set variable with file list
   5. Create the final view
 
-#### Metadata Operations
+#### Glue Table Metadata Operations
 
 ```typescript
-getTableMetadata(database: string, tableName: string): Promise<CachedTableMetadata>
+getTableMetadata(database: string, tableName: string): Promise<CachedGlueTableMetadata>
 ```
 
 - Retrieves Glue Table metadata with caching
+
+#### S3 Table Metadata Operations
+
+TODO.
+
+#### Cache Operations
 
 ```typescript
 clearCache(): void
