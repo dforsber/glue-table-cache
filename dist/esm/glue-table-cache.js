@@ -2,7 +2,6 @@ import { GlueClient } from "@aws-sdk/client-glue";
 import { S3Client } from "@aws-sdk/client-s3";
 import { LRUCache } from "lru-cache";
 import { DuckDBInstance } from "@duckdb/node-api";
-import debug from "debug";
 import { SqlTransformer } from "./sql-transformer.js";
 import { ETableType, } from "./types.js";
 import { listS3Objects, mapS3PathsToInfo } from "./util/s3.js";
@@ -10,6 +9,7 @@ import { getGlueTableMetadata, getPartitionExtractor } from "./util/glue.js";
 import { getIcebergS3FilesStmts } from "./util/iceberg.js";
 import { Mutex } from "async-mutex";
 import retry from "async-retry";
+import debug from "debug";
 const log = debug("glue-table-cache");
 const logAws = debug("glue-table-cache:aws");
 const defaultConfig = {
